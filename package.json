@@ -2,12 +2,12 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
   },
-  "keywords" : ["ftp", "sftp", "ssh", "remote", "download", "upload"],
+  "keywords" : ["ftp", "sftp", "remote", "download", "upload"],
   "categories": [
     "Other"
   ],
@@ -31,23 +31,23 @@
     "commands": [
       {
         "command": "ftp.config",
-        "title": "FTP-Simple : CONFIG - ftp connection setting"
+        "title": "ftp-simple : CONFIG - ftp connection setting"
       },
       {
         "command": "ftp.remote.open",
-        "title": "FTP-Simple : OPEN - from ftp server"
+        "title": "ftp-simple : OPEN - from ftp server"
       },
       {
         "command": "ftp.remote.save",
-        "title": "FTP-Simple : SAVE - to ftp server"
+        "title": "ftp-simple : SAVE - to ftp server"
       },
       {
         "command": "ftp.remote.delete",
-        "title": "FTP-Simple : DELETE - file or directory in ftp server(recursive)"
+        "title": "ftp-simple : DELETE - file or directory in ftp server(recursive)"
       },
       {
         "command": "ftp.remote.mkdir",
-        "title": "FTP-Simple : CREATE DIRECTORY - to ftp server"
+        "title": "ftp-simple : CREATE DIRECTORY - to ftp server"
       }      
     ]
     ,"keybindings": [
