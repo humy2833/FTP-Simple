@@ -1,0 +1,68 @@
+{
+  "name": "FTP-Simple",
+  "displayName": "FTP-Simple",
+  "description": "Simple FTP/SFTP",
+  "version": "0.1.0",
+  "publisher": "humy2833",
+  "engines": {
+    "vscode": "^0.10.10"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:ftp.config",
+    "onCommand:ftp.remote.mkdir",
+    "onCommand:ftp.remote.delete",
+    "onCommand:ftp.remote.save",
+    "onCommand:ftp.remote.open"
+  ],
+  "main": "./extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ftp.config",
+        "title": "FTP-Simple : CONFIG - ftp connection setting"
+      },
+      {
+        "command": "ftp.remote.open",
+        "title": "FTP-Simple : OPEN - from ftp server"
+      },
+      {
+        "command": "ftp.remote.save",
+        "title": "FTP-Simple : SAVE - to ftp server"
+      },
+      {
+        "command": "ftp.remote.delete",
+        "title": "FTP-Simple : DELETE - file or directory in ftp server(recursive)"
+      },
+      {
+        "command": "ftp.remote.mkdir",
+        "title": "FTP-Simple : CREATE DIRECTORY - to ftp server"
+      }      
+    ]
+    ,"keybindings": [
+			{
+				"command": "ftp.remote.save",
+				"key": "ctrl+shift+s",
+				"mac": "cmd+shift+s"
+			},
+      {
+				"command": "ftp.remote.open",
+				"key": "ctrl+shift+o",
+				"mac": "cmd+shift+o"
+			}
+		]
+  },
+  "scripts": {
+    "postinstall": "node ./node_modules/vscode/bin/install"
+  },
+  "devDependencies": {
+    "vscode": "^0.11.0"
+  },
+  "dependencies": {
+    "easy-ftp": "^0.3.6",
+    "filesize": "^3.3.0",
+    "fs-extra": "^0.30.0"
+  }
+}
