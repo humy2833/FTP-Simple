@@ -2,7 +2,7 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
@@ -14,7 +14,7 @@
 	"license": "MIT",
 	"repository": {
     "type": "git",
-    "url": "https://github.com/humy2833/FTP-Simple"
+    "url": "https://github.com/humy2833/FTP-Simple.git"
   },
   "bugs": {
     "url": "https://github.com/humy2833/FTP-Simple/issues"
