@@ -28,7 +28,7 @@ function activate(context) {
     fse.remove(REMOTE_TEMP_PATH);
     
 
-    outputChannel = vsUtil.getOutputChannel("ftp");  
+    outputChannel = vsUtil.getOutputChannel("ftp-simple");  
     // vscode.window.setStatusBarMessage("실행중");
     vscode.workspace.onDidSaveTextDocument(function(event){
       var remoteTempPath = pathUtil.normalize(event.fileName);
