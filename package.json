@@ -2,12 +2,12 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.1.2",
+  "version": "0.1.0",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
   },
-  "keywords" : ["ftp", "sftp", "ssh", "remote"],
+  "tags" : ["ftp", "sftp", "ssh", "remote"],
   "categories": [
     "Other"
   ],
