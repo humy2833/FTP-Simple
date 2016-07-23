@@ -10,6 +10,14 @@
   "categories": [
     "Other"
   ],
+	"license": "MIT",
+	"repository": {
+    "type": "git",
+    "url": "git+https://github.com/humy2833/FTP-Simple.git"
+  },
+  "bugs": {
+    "url": "https://github.com/humy2833/FTP-Simple/issues"
+  },
   "activationEvents": [
     "onCommand:ftp.config",
     "onCommand:ftp.remote.mkdir",
@@ -61,7 +69,7 @@
     "vscode": "^0.11.0"
   },
   "dependencies": {
-    "easy-ftp": "^0.3.6",
+    "easy-ftp": "^0.3.7",
     "filesize": "^3.3.0",
     "fs-extra": "^0.30.0"
   }

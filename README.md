@@ -15,13 +15,13 @@
 ##Config setting example
 See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 
-* name - _string_	- Display name.
-* host - _string_	- server domain or ip.
-* port - _number_	- port (default : 21)
-* type - _string_	- ftp type. 'ftp' or 'sftp' (default : 'ftp')
-* username - _string_	- username for authentication.
-* password - _string_	- password for authentication.
-* path - _string_	- remote root path. **Default:** '/'
+* **name** - _string_	- Display name.
+* **host** - _string_	- server domain or ip.
+* **port** - _number_	- port (default : 21)
+* **type** - _string_	- ftp type. 'ftp' or 'sftp' (default : 'ftp')
+* **username** - _string_	- username for authentication.
+* **password** - _string_	- password for authentication.
+* **path** - _string_	- remote root path. **Default:** '/'
 
 
 Example
