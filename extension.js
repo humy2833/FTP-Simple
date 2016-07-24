@@ -11,8 +11,8 @@ var EasyFTP = require('easy-ftp');
 var outputChannel = null;
 var root = null;
 var ftps = [];
-const CONFIG_NAME = "ftp-mini.json";
-const CONFIG_FTP_TEMP = "/ftp-mini/remote-temp";
+const CONFIG_NAME = "ftp-simple.json";
+const CONFIG_FTP_TEMP = "/ftp-simple/remote-temp";
 const CONFIG_PATH = vsUtil.getConfigPath(CONFIG_NAME);
 const REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
 // this method is called when your extension is activated
@@ -310,7 +310,7 @@ function initConfig(){
   try{
     var json = vsUtil.getConfig(CONFIG_NAME, JSON.parse);
     if(json === undefined){
-      fs.writeFileSync(CONFIG_PATH, JSON.stringify([{name:"ftp1", host:"", port:21, type:"ftp", username:"", password:"", path:"/"}], null, "\t"));
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify([{name:"localhost", host:"", port:21, type:"ftp", username:"", password:"", path:"/"}], null, "\t"));
     }
   }catch(e){
     console.log(e);
