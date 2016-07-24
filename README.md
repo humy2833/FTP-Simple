@@ -12,6 +12,12 @@
 * save
 * delete
 
+##Startup Settings
+1. Press 'F1'  
+2. Enter 'ftp-simple' 
+3. Pick 'CONFIG' 
+4. Enter ftp connection info and save
+
 ##Config setting example
 See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 
