@@ -1,5 +1,3 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 var vscode = require('vscode');
 var fs = require('fs');
 var fse = require('fs-extra');
@@ -15,271 +13,254 @@ const CONFIG_NAME = "ftp-simple.json";
 const CONFIG_FTP_TEMP = "/ftp-simple/remote-temp";
 const CONFIG_PATH = vsUtil.getConfigPath(CONFIG_NAME);
 const REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
-// this method is called when your extension is activated
-// your extension is activated the very first time the command is executed
+
 function activate(context) {
+  outputChannel = vsUtil.getOutputChannel("ftp-simple");
 
-    // Use the console to output diagnostic information (console.log) and errors (console.error)
-    // This line of code will only be executed once when your extension is activated
+  vscode.workspace.onDidSaveTextDocument(function(event){
+    var remoteTempPath = pathUtil.normalize(event.fileName);
+    var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
+    if(ftpConfig.config && ftpConfig.path)
+    {
+      var ftp = createFTP(ftpConfig.config, function(){
+        ftp.upload(remoteTempPath, ftpConfig.path, function(){
+          ftp.close();
+        });
+      });
+    }
+  });
+  vscode.workspace.onDidCloseTextDocument(function(event){
+    var remoteTempPath = pathUtil.normalize(event.fileName);
+    var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
+    if(ftpConfig.config && ftpConfig.path)
+    {
+      fs.unlink(pathUtil.normalize(event.fileName));
+    }
+  });
+  vscode.window.onDidChangeActiveTextEditor(function(event){
+    var remoteTempPath = pathUtil.normalize(event.document.fileName);
+    var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
+    if(ftpConfig.config && ftpConfig.path)
+    {
+      vsUtil.status("If save, Auto save to remote server.");
+    }
+    else
+    {
+      vsUtil.status("");
+    }
+  });
 
+  var ftpConfig = vscode.commands.registerCommand('ftp.config', function () {
+      //확장 설정 가져오기(hello.abcd 일때);
+      //console.log(JSON.stringify(vscode.workspace.getConfiguration('hello')));
+      if(initConfig()){
+        vsUtil.openTextDocument(CONFIG_PATH);
+      }
+  });
 
-    //var root = vsUtil.getWorkspacePath();
-    //console.log("root : " + root, CONFIG_PATH);
-    fse.remove(REMOTE_TEMP_PATH);
-    
+  var ftpDelete = vscode.commands.registerCommand('ftp.remote.delete', function () {
+    getSelectedFTPConfig(function(ftpConfig)
+    {
+      var ftp = createFTP(ftpConfig);
+      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file or path want to delete", [{label:".", description:ftpConfig.path}], function selectItem(item, parentPath, filePath){
+        if(!item)
+        {
+          close();
+          return;
+        }
+        var deletePath = filePath ? filePath : parentPath;
+        vsUtil.warning("Are you sure you want to delete '"+deletePath+"'?", "Back", "OK")
+        .then(function(btn){
+          if(btn == "OK") 
+          {
+            ftp.rm(deletePath, function(err){
+              if(err) vsUtil.error(err.toString());
+              else output("Deleted : " + deletePath);
+              close();
+            });
+          }
+          else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, parentPath, "Select the file or path want to delete", [{label:".", description:parentPath}], selectItem);
+          else close();
+        });
+      });
 
-    outputChannel = vsUtil.getOutputChannel("ftp-simple");  
-    // vscode.window.setStatusBarMessage("실행중");
-    vscode.workspace.onDidSaveTextDocument(function(event){
-      var remoteTempPath = pathUtil.normalize(event.fileName);
-      var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
-      if(ftpConfig.config && ftpConfig.path)
-      {
-        var ftp = createFTP(ftpConfig.config, function(){
-          ftp.upload(remoteTempPath, ftpConfig.path, function(){
-            ftp.close();
-          });
+      function close(){ftp.close();}
+    }); 
+  });
+
+  var ftpMkdir = vscode.commands.registerCommand('ftp.remote.mkdir', function () {
+    getSelectedFTPConfig(function(ftpConfig)
+    {
+      var ftp = createFTP(ftpConfig);
+      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path want to create directory", [{label:".", description:ftpConfig.path}], "D", function selectItem(item, parentPath, filePath){
+        if(!item)
+        {
+          close();
+          return;
+        }
+        create(ftp, parentPath);
+      });
+      function create(ftp, path, value){
+        var isInput = false;
+        vsUtil.input({
+            value : value ? value : ""
+          , placeHolder : "Enter the name of the directory to be created"
+          , prompt : "Now path : " + path
+          , validateInput : function(value){
+              return isInput = /[\\|*?<>:"]/.test(value) ? true : null;
+          }
+        }).then(function(name){
+          if(name) 
+          {
+            var parent = path;
+            var realName = name;
+            if(name.indexOf("/") > 0)
+            {
+              parent = pathUtil.join(path, pathUtil.getParentPath(name));
+              realName = pathUtil.getFileName(name);
+            }
+            exist(ftp, parent, realName, function(result){
+              if(result) 
+              {
+                vsUtil.error("Already exist directory '"+name+"'", "Rename")
+                .then(function(btn){
+                  if(btn) create(ftp, path, name);
+                  else close();
+                });
+              }
+              else 
+              {
+                var p = pathUtil.join(path, name);
+                ftp.mkdir(p, function(err){
+                  if(!err) output("Create directory : " + p);
+                  close();
+                });
+              }
+            });
+          }
+          else 
+          {
+            if(isInput) 
+            {
+              vsUtil.error("Filename to include inappropriate words.");
+              create(ftp, path);
+            }
+            else close();
+          }
         });
       }
-    });
-    vscode.workspace.onDidCloseTextDocument(function(event){
-      var remoteTempPath = pathUtil.normalize(event.fileName);
-      var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
-      if(ftpConfig.config && ftpConfig.path)
-      {
-        fs.unlink(pathUtil.normalize(event.fileName));
-      }
-    });
-    vscode.window.onDidChangeActiveTextEditor(function(event){
-      var remoteTempPath = pathUtil.normalize(event.document.fileName);
-      var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
-      if(ftpConfig.config && ftpConfig.path)
-      {
-        vsUtil.status("If save, Auto save to remote server.");
-      }
-      else
-      {
-        vsUtil.status("");
-      }
-    });
-    // The command has been defined in the package.json file
-    // Now provide the implementation of the command with  registerCommand
-    // The commandId parameter must match the command field in package.json
-    var ftpEdit = vscode.commands.registerCommand('ftp.config', function () {
-        // The code you place here will be executed every time your command is executed
-        
-        //확장 설정 가져오기(hello.abcd 일때);
-        //console.log(JSON.stringify(vscode.workspace.getConfiguration('hello')));
-        // Display a message box to the user
-        //console.log(readConfig());
-        
-        //설정파일 열어서 에디터에 보여주기
-        if(initConfig()){
-          vsUtil.openTextDocument(CONFIG_PATH);
-        }
-    });
+      function close(){ftp.close();}
+    }); 
+  });
 
-    var ftpEdit = vscode.commands.registerCommand('ftp.remote.delete', function () {
-      getSelectedFTPConfig(function(ftpConfig)
-      {
-        var ftp = createFTP(ftpConfig);
-        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file or path want to delete", [{label:".", description:ftpConfig.path}], function selectItem(item, parentPath, filePath){
-          if(!item)
+  var ftpOpen = vscode.commands.registerCommand('ftp.remote.open', function () {
+    getSelectedFTPConfig(function(ftpConfig)
+    {
+      var ftp = createFTP(ftpConfig);    
+      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file want to open", function(item, parentPath, filePath){          
+        if(item){
+          downloadOpen(ftp, ftpConfig, filePath, close);
+        }else{
+          close();
+        }
+        function close(){
+          ftp.close();
+        }
+      });
+    });
+  });
+  
+  var ftpSave = vscode.commands.registerCommand('ftp.remote.save', function () { 
+    var localFilePath = vsUtil.getActiveFilePath();
+    if(!localFilePath)
+    {
+      vsUtil.msg("Please select a file to upload");
+      return;
+    }
+    if(vsUtil.isUntitled())
+    {
+      vsUtil.msg("Please save first");
+      return;
+    }
+    if(vsUtil.isDirty())  vsUtil.save();
+
+    getSelectedFTPConfig(function(ftpConfig)
+    {
+      var ftp = createFTP(ftpConfig);
+      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path or file want to save", [{label:".", description:ftpConfig.path}], function selectItem(item, path, filePath){
+        if(item)
+        {
+          if(filePath)
           {
-            close();
-            return;
+            confirmExist(ftp, localFilePath, filePath);
           }
-          var deletePath = filePath ? filePath : parentPath;
-          vsUtil.warning("Are you sure you want to delete '"+deletePath+"'?", "Back", "OK")
-          .then(function(btn){
-            if(btn == "OK") 
-            {
-              ftp.rm(deletePath, function(err){
-                if(err) vsUtil.error(err.toString());
-                else output("Deleted : " + deletePath);
+          else
+          {
+            var fileName = pathUtil.getFileName(localFilePath);
+            var isInput = false;
+            vsUtil.input({value : fileName
+              , placeHolder : "Write the file name"
+              , prompt : "Write the file name"
+              , validateInput : function(value){
+                  return isInput = /[\\\/|*?<>:"]/.test(value) ? true : null;
+              }
+            }).then(function(name){
+              if(name) existProc(name);
+              else 
+              {
+                if(isInput) vsUtil.error("Filename to include inappropriate words.");
                 close();
+              }
+            });
+
+            function existProc(fileName){
+              exist(ftp, path, fileName, function(result){
+                if(result) confirmExist(ftp, localFilePath, pathUtil.join(path, fileName));
+                else
+                {
+                  upload(ftp, ftpConfig, localFilePath, pathUtil.join(path, fileName));
+                }
               });
+              }
+          }
+        }
+        else close();
+
+        function upload(ftp, ftpConfig, localPath, remotePath){
+          ftp.upload(localPath, remotePath, function(err){
+            if(!err)
+            {
+              vsUtil.hide();
+              downloadOpen(ftp, ftpConfig, remotePath, close);
             }
-            else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, parentPath, "Select the file or path want to delete", [{label:".", description:parentPath}], selectItem);
             else close();
           });
-        });
-
-        function close(){ftp.close();}
-      }); 
-    });
-
-    var ftpEdit = vscode.commands.registerCommand('ftp.remote.mkdir', function () {
-      getSelectedFTPConfig(function(ftpConfig)
-      {
-        var ftp = createFTP(ftpConfig);
-        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path want to create directory", [{label:".", description:ftpConfig.path}], "D", function selectItem(item, parentPath, filePath){
-          if(!item)
-          {
-            close();
-            return;
-          }
-          create(ftp, parentPath);
-        });
-        function create(ftp, path, value){
-          var isInput = false;
-          vsUtil.input({
-              value : value ? value : ""
-            , placeHolder : "Enter the name of the directory to be created"
-            , prompt : "Now path : " + path
-            , validateInput : function(value){
-                return isInput = /[\\|*?<>:"]/.test(value) ? true : null;
-            }
-          }).then(function(name){
-            if(name) 
-            {
-              var parent = path;
-              var realName = name;
-              if(name.indexOf("/") > 0)
-              {
-                parent = pathUtil.join(path, pathUtil.getParentPath(name));
-                realName = pathUtil.getFileName(name);
-              }
-              exist(ftp, parent, realName, function(result){
-                if(result) 
-                {
-                  vsUtil.error("Already exist directory '"+name+"'", "Rename")
-                  .then(function(btn){
-                    if(btn) create(ftp, path, name);
-                    else close();
-                  });
-                }
-                else 
-                {
-                  var p = pathUtil.join(path, name);
-                  ftp.mkdir(p, function(err){
-                    if(!err) output("Create directory : " + p);
-                    close();
-                  });
-                }
-              });
-            }
-            else 
-            {
-              if(isInput) 
-              {
-                vsUtil.error("Filename to include inappropriate words.");
-                create(ftp, path);
-              }
-              else close();
-            }
+        }
+        function confirmExist(ftp, localPath, remotePath, cb){
+          vsUtil.warning("Already exist file '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
+            if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
+            else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path or file want to save", [{label:".", description:path}], selectItem);
+            else close();
           });
         }
-        function close(){ftp.close();}
-      }); 
-    });
-
-    var ftpDownload = vscode.commands.registerCommand('ftp.remote.open', function () {
-      getSelectedFTPConfig(function(ftpConfig)
-      {
-        var ftp = createFTP(ftpConfig);    
-        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file want to open", function(item, parentPath, filePath){          
-          if(item){
-            downloadOpen(ftp, ftpConfig, filePath, close);
-          }else{
-            close();
-          }
-          function close(){
-            ftp.close();
-          }
-        });
+        function close(){
+          ftp.close();
+        }
       });
     });
-    
-    var ftpUpload = vscode.commands.registerCommand('ftp.remote.save', function () { 
-      var localFilePath = vsUtil.getActiveFilePath();
-      if(!localFilePath)
-      {
-        vsUtil.msg("Please select a file to upload");
-        return;
-      }
-      if(vsUtil.isUntitled())
-      {
-        vsUtil.msg("Please save first");
-        return;
-      }
-      if(vsUtil.isDirty())  vsUtil.save();
+  });
 
-      getSelectedFTPConfig(function(ftpConfig)
-      {
-        var ftp = createFTP(ftpConfig);
-        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path or file want to save", [{label:".", description:ftpConfig.path}], function selectItem(item, path, filePath){
-          if(item)
-          {
-            if(filePath)
-            {
-              confirmExist(ftp, localFilePath, filePath);
-            }
-            else
-            {
-              var fileName = pathUtil.getFileName(localFilePath);
-              var isInput = false;
-              vsUtil.input({value : fileName
-                , placeHolder : "Write the file name"
-                , prompt : "Write the file name"
-                , validateInput : function(value){
-                    return isInput = /[\\\/|*?<>:"]/.test(value) ? true : null;
-                }
-              }).then(function(name){
-                if(name) existProc(name);
-                else 
-                {
-                  if(isInput) vsUtil.error("Filename to include inappropriate words.");
-                  close();
-                }
-              });
-
-              function existProc(fileName){
-                exist(ftp, path, fileName, function(result){
-                  if(result) confirmExist(ftp, localFilePath, pathUtil.join(path, fileName));
-                  else
-                  {
-                    upload(ftp, ftpConfig, localFilePath, pathUtil.join(path, fileName));
-                  }
-                });
-               }
-            }
-          }
-          else close();
-
-          function upload(ftp, ftpConfig, localPath, remotePath){
-            ftp.upload(localPath, remotePath, function(err){
-              if(!err)
-              {
-                vsUtil.hide();
-                downloadOpen(ftp, ftpConfig, remotePath, close);
-              }
-              else close();
-            });
-          }
-          function confirmExist(ftp, localPath, remotePath, cb){
-            vsUtil.warning("Already exist file '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
-              if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
-              else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path or file want to save", [{label:".", description:path}], selectItem);
-              else close();
-            });
-          }
-          function close(){
-            ftp.close();
-          }
-        });
-      });
-    });
-
-    context.subscriptions.push(ftpEdit);
-    context.subscriptions.push(ftpDownload);
-    context.subscriptions.push(ftpUpload);
+  context.subscriptions.push(ftpConfig);
+  context.subscriptions.push(ftpDelete);
+  context.subscriptions.push(ftpMkdir);
+  context.subscriptions.push(ftpOpen);
+  context.subscriptions.push(ftpSave);
 }
 exports.activate = activate;
 
 // this method is called when your extension is deactivated
 function deactivate() {
-  fse.removeSync(REMOTE_TEMP_PATH);
+  fse.remove(pathUtil.getParentPath(REMOTE_TEMP_PATH));
 }
 exports.deactivate = deactivate;
 
