@@ -19,14 +19,19 @@
   "bugs": {
     "url": "https://github.com/humy2833/FTP-Simple/issues"
   },
+  "icon": "logo.png",
   "activationEvents": [
-    "*"
+    "onCommand:ftp.remote.config",
+    "onCommand:ftp.remote.open",
+    "onCommand:ftp.remote.save",
+    "onCommand:ftp.remote.delete",
+    "onCommand:ftp.remote.mkdir"
   ],
   "main": "./extension",
   "contributes": {
     "commands": [
       {
-        "command": "ftp.config",
+        "command": "ftp.remote.config",
         "title": "ftp-simple : CONFIG - ftp connection setting"
       },
       {

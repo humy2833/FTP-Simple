@@ -15,6 +15,7 @@ const CONFIG_PATH = vsUtil.getConfigPath(CONFIG_NAME);
 const REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
 
 function activate(context) {
+  console.log("ftp-simple start");
   outputChannel = vsUtil.getOutputChannel("ftp-simple");
 
   vscode.workspace.onDidSaveTextDocument(function(event){
@@ -50,7 +51,7 @@ function activate(context) {
     }
   });
 
-  var ftpConfig = vscode.commands.registerCommand('ftp.config', function () {
+  var ftpConfig = vscode.commands.registerCommand('ftp.remote.config', function () {
       //확장 설정 가져오기(hello.abcd 일때);
       //console.log(JSON.stringify(vscode.workspace.getConfiguration('hello')));
       if(initConfig()){
