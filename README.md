@@ -1,6 +1,6 @@
 ##Function
 
-- Directly **Open**, **Edit** and **Save** server files.
+- Directly **Open**, **Edit** and **Save** on server files.
 - **Save** the **local file** or **directory** to **server**(=upload)
 - **Create** a **directory** on the remote server directly.
 - **Delete** **directory**(recursive) and **files** directly from the server.
@@ -21,14 +21,14 @@
 ##Config setting example
 See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 
-* **name** - _string_	- Display name.
+* **name** - _string_	- (option) Display name.
 * **host** - _string_	- server domain or ip.
-* **port** - _number_	- port (default : 21)
-* **type** - _string_	- ftp type. 'ftp' or 'sftp' (default : 'ftp')
+* **port** - _number_	- (option) port (default : 21)
+* **type** - _string_	- (option) ftp type. 'ftp' or 'sftp' (default : 'ftp')
 * **username** - _string_	- username for authentication.
 * **password** - _string_	- password for authentication.
-* **path** - _string_	- remote root path. **Default:** '/'
-
+* **path** - _string_	- (option) remote root path. **Default:** '/'
+* **privateKey** - _string_	- (option) sftp only. string that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
 
 Example
 ```json

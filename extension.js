@@ -9,7 +9,7 @@ var vsUtil = require('./lib/vs-util');
 var EasyFTP = require('easy-ftp');
 var outputChannel = null;
 var root = null;
-var ftps = [];
+var ftps = {};
 const CONFIG_NAME = "ftp-simple.json";
 const CONFIG_FTP_TEMP = "/ftp-simple/remote-temp";
 const CONFIG_PATH = vsUtil.getConfigPath(CONFIG_NAME);
@@ -25,9 +25,7 @@ function activate(context) {
     if(ftpConfig.config && ftpConfig.path)
     {
       var ftp = createFTP(ftpConfig.config, function(){
-        ftp.upload(remoteTempPath, ftpConfig.path, function(){
-          ftp.close();
-        });
+        ftp.upload(remoteTempPath, ftpConfig.path);
       });
     }
   });
@@ -67,7 +65,6 @@ function activate(context) {
       getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file or path want to delete", [{label:".", description:ftpConfig.path}], function selectItem(item, parentPath, filePath){
         if(!item)
         {
-          close();
           return;
         }
         var deletePath = filePath ? filePath : parentPath;
@@ -78,15 +75,11 @@ function activate(context) {
             ftp.rm(deletePath, function(err){
               if(err) vsUtil.error(err.toString());
               else output("Deleted : " + deletePath);
-              close();
             });
           }
           else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, parentPath, "Select the file or path want to delete", [{label:".", description:parentPath}], selectItem);
-          else close();
         });
       });
-
-      function close(){ftp.close();}
     }); 
   });
 
@@ -97,7 +90,6 @@ function activate(context) {
       getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path want to create directory", [{label:".", description:ftpConfig.path}], "D", function selectItem(item, parentPath, filePath){
         if(!item)
         {
-          close();
           return;
         }
         create(ftp, parentPath);
@@ -127,7 +119,6 @@ function activate(context) {
                 vsUtil.error("Already exist directory '"+name+"'", "Rename")
                 .then(function(btn){
                   if(btn) create(ftp, path, name);
-                  else close();
                 });
               }
               else 
@@ -135,7 +126,6 @@ function activate(context) {
                 var p = pathUtil.join(path, name);
                 ftp.mkdir(p, function(err){
                   if(!err) output("Create directory : " + p);
-                  close();
                 });
               }
             });
@@ -147,11 +137,9 @@ function activate(context) {
               vsUtil.error("Filename to include inappropriate words.");
               create(ftp, path);
             }
-            else close();
           }
         });
       }
-      function close(){ftp.close();}
     }); 
   });
 
@@ -161,12 +149,7 @@ function activate(context) {
       var ftp = createFTP(ftpConfig);    
       getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file want to open", function(item, parentPath, filePath){          
         if(item){
-          downloadOpen(ftp, ftpConfig, filePath, close);
-        }else{
-          close();
-        }
-        function close(){
-          ftp.close();
+          downloadOpen(ftp, ftpConfig, filePath);
         }
       });
     });
@@ -219,7 +202,6 @@ function activate(context) {
               else 
               {
                 if(isInput) vsUtil.error("Filename to include inappropriate words.");
-                close();
               }
             });
 
@@ -234,7 +216,6 @@ function activate(context) {
               }
           }
         }
-        else close();
 
         function upload(ftp, ftpConfig, localPath, remotePath){
           if(isDir) localPath = localPath + "/**";
@@ -242,20 +223,16 @@ function activate(context) {
             if(!err && !isForceUpload)
             {
               vsUtil.hide();
-              downloadOpen(ftp, ftpConfig, remotePath, close);
+              downloadOpen(ftp, ftpConfig, remotePath);
             }
-            else close();
+            if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
           });
         }
         function confirmExist(ftp, localPath, remotePath, cb){
           vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
             if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
             else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:path}], selectItem);
-            else close();
           });
-        }
-        function close(){
-          ftp.close();
         }
       });
     });
@@ -271,42 +248,102 @@ exports.activate = activate;
 
 // this method is called when your extension is deactivated
 function deactivate() {
-  fse.remove(pathUtil.getParentPath(REMOTE_TEMP_PATH));
+  closeFTPAll();
+  fse.remove(pathUtil.getParentPath(REMOTE_TEMP_PATH), function(){
+  });
 }
 exports.deactivate = deactivate;
 
 function createFTP(ftpConfig, cb){
-  const TRY = 5;
-  var count = 0;
-  var ftp = new EasyFTP();
-  output("FTP Connecting... : " + ftpConfig.name);
-  ftp.connect(ftpConfig);
-  ftp.on("open", function(){
-    count = TRY;
-    output("FTP open!!");
-    if(cb) cb();
-  });
-  ftp.on("close", function(){
-    output("FTP close!!");
-  });
-  ftp.on("error", function(err){
-    output(err);
-    if(count < TRY)
+  var ftp = getFTP(ftpConfig.host, function(result){
+    if(result)
     {
-      count++;
-      setTimeout(function(){
-        output("FTP Connecting try... : " + ftpConfig.name);
-        ftp.connect(ftpConfig);
-      }, 200);
+      if(cb) cb();
+    }
+    else
+    {
+      var TRY = 5;
+      var count = 0;
+      //var ftp = new EasyFTP();
+      output(ftpConfig.name + " - " + "FTP Connecting...");
+      ftp.connect(ftpConfig);
+      ftp.on("open", function(){        
+        count = TRY;
+        output(ftpConfig.name + " - " + "FTP open!!");
+        addFTP(ftpConfig.host, ftp);
+        if(cb) cb();
+      });
+      ftp.on("close", function(){
+        output(ftpConfig.name + " - " + "FTP close!!");
+        deleteFTP(ftpConfig.host);
+      });
+      ftp.on("error", function(err){
+        output(ftpConfig.name + " - " + err);
+        if(String(err).indexOf("Timed out while waiting for handshake") > -1) TRY = 0;
+        if(count < TRY)
+        {
+          count++;
+          setTimeout(function(){
+            output(ftpConfig.name + " - " + "FTP Connecting try...");
+            ftp.connect(ftpConfig);
+          }, 200);
+        }
+      });
+      ftp.on("upload", function(path){
+        output(ftpConfig.name + " - " + "Uploaded : " + path);
+      });
+      ftp.on("download", function(path){
+        output(ftpConfig.name + " - " + "Downloaded : " + path);
+      });
     }
   });
-  ftp.on("upload", function(path){
-    output("Uploaded : " + path);
-  });
-  ftp.on("download", function(path){
-    output("Downloaded : " + path);
-  });
   return ftp;
+
+  function addFTP(host, ftp){
+    var result = true;
+    var key = commonUtil.md5(host);
+    ftps[key] = ftp;
+  }
+  function deleteFTP(host){
+    var key = commonUtil.md5(host);
+    if(ftps[key])
+    {
+      delete ftps[key];
+    }
+  }
+  function getFTP(host, cb){
+    var key = commonUtil.md5(host);
+    if(ftps[key])
+    {
+      try{
+        ftps[key].pwd(function(err, path){       
+          if(err) 
+          {
+            if(cb)cb();
+          }
+          else 
+          {
+            setTimeout(function(){if(cb)cb(ftps[key]);}, 10);
+          }
+        });
+      }catch(e){
+        if(cb)cb();
+      }
+    }
+    else 
+    {
+      ftps[key] = new EasyFTP();
+      setTimeout(cb, 100);
+    }
+    return ftps[key];
+  }
+}
+function closeFTPAll(){
+  for(var i in ftps)
+  {
+    try{ftps[i].close();}catch(e){}
+    delete ftps[i];
+  }
 }
 function initConfig(){
   var result = true;
@@ -316,7 +353,7 @@ function initConfig(){
       fs.writeFileSync(CONFIG_PATH, JSON.stringify([{name:"localhost", host:"", port:21, type:"ftp", username:"", password:"", path:"/"}], null, "\t"));
     }
   }catch(e){
-    console.log(e);
+    //console.log(e);
     vsUtil.msg("Check config file.");
     result = false;
   }
@@ -370,7 +407,7 @@ function getSelectedFTPConfig(cb){
     return;
   }
   vsUtil.pick(ftps, "Select FTP server", function(name) {
-    cb(getFTPConfig(ftpsConfig, name));
+    if(cb)cb(getFTPConfig(ftpsConfig, name));
   });
 }
 function getSelectedFTPFile(ftp, ftpConfig, path, placeHolder, addItems, filter, cb){
@@ -387,7 +424,11 @@ function getSelectedFTPFile(ftp, ftpConfig, path, placeHolder, addItems, filter,
   path = pathUtil.normalize(path);
   ftp.ls(path, function(err, list){
     if(!err) output("cd " + path);
-    else return;
+    else 
+    {
+      vsUtil.error("Not exist '"+path+"'");
+      return;
+    }
     var arr = [];
     for(var i in list)
     {
@@ -414,13 +455,13 @@ function getSelectedFTPFile(ftp, ftpConfig, path, placeHolder, addItems, filter,
     if(path.length > ftpConfig.path.length) arr = [{label:"..", description:"Go to parent directory : " + pathUtil.getParentPath(path)}].concat(arr);
     vsUtil.pick(arr, placeHolder + ".  Now path '" + path + "'").then(function(item){
       if(!item){
-        cb();
+        if(cb)cb();
       }else if(item.label == ".."){
         getSelectedFTPFile(ftp, ftpConfig, pathUtil.getParentPath(path), placeHolder, addItems, filter, cb);
       }else if(item.type === "D"){
         getSelectedFTPFile(ftp, ftpConfig, pathUtil.join(path, item.label), placeHolder, addItems, filter, cb);
       }else{
-        cb(item, path, item.type ? pathUtil.join(path, item.label) : null);
+        if(cb)cb(item, path, item.type ? pathUtil.join(path, item.label) : null);
       }
     });
   });
@@ -439,7 +480,7 @@ function getFTPConfigFromRemoteTempPath(remoteTempPath){
 function downloadOpen(ftp, ftpConfig, remotePath, cb){
   var localPath = pathUtil.join(REMOTE_TEMP_PATH, commonUtil.md5(ftpConfig.host), remotePath);
   ftp.download(remotePath, localPath, function(path){
-    cb();
+    if(cb)cb();
     fs.stat(localPath, function(err){
       if(!err)
       {
@@ -451,6 +492,7 @@ function downloadOpen(ftp, ftpConfig, remotePath, cb){
 function exist(ftp, path, name, cb){
   ftp.ls(path, function(err, list){
     var same = false;
+    if(err) list = [];
     for(var i in list)
     {
       if(list[i].name == name)
@@ -459,6 +501,6 @@ function exist(ftp, path, name, cb){
         break;
       }
     }
-    cb(same);
+    if(cb)cb(same);
   });
 }
