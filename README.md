@@ -1,22 +1,22 @@
 ##Function
 
 - Directly **Open**, **Edit** and **Save** server files.
-- **Save** the **local file** to **server**
+- **Save** the **local file** or **directory** to **server**(=upload)
 - **Create** a **directory** on the remote server directly.
 - **Delete** **directory**(recursive) and **files** directly from the server.
 
 ##Available commands
-* config
-* create directory
-* open
-* save
-* delete
+* config - Set the ftp connection information.
+* create directory - Create a directory on ftp server.
+* open - Open the file directly from ftp server.
+* save - File or directory upload to ftp server.(Available from the context menu)
+* delete - Delete the file or directory directly from ftp server.
 
 ##Startup Settings
 1. Press 'F1'  
 2. Enter 'ftp-simple' 
 3. Pick 'CONFIG' 
-4. Enter ftp connection info and save
+4. Enter ftp connection information and save
 
 ##Config setting example
 See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.

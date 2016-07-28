@@ -2,7 +2,7 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
@@ -36,11 +36,11 @@
       },
       {
         "command": "ftp.remote.open",
-        "title": "ftp-simple : OPEN - from ftp server"
+        "title": "ftp-simple : OPEN - download from ftp server"
       },
       {
         "command": "ftp.remote.save",
-        "title": "ftp-simple : SAVE - to ftp server"
+        "title": "ftp-simple : SAVE - upload to ftp server"
       },
       {
         "command": "ftp.remote.delete",
@@ -63,6 +63,20 @@
 				"mac": "cmd+shift+o"
 			}
 		]
+    ,"menus" : {
+      "explorer/context": [{
+        "command": "ftp.remote.save",
+        "group": "ftp-simple"
+      }],
+      "editor/context": [{
+        "command": "ftp.remote.save",
+        "group": "ftp-simple"
+      }],
+      "editor/title": [{
+        "command": "ftp.remote.save",
+        "group": "ftp-simple"
+      }]
+    }
   },
   "scripts": {
     "postinstall": "node ./node_modules/vscode/bin/install"

@@ -3,6 +3,7 @@ var fs = require('fs');
 var fse = require('fs-extra');
 var filesize = require('filesize');
 var pathUtil = require('./lib/path-util');
+var fileUtil = require('./lib/file-util');
 var commonUtil = require('./lib/common-util');
 var vsUtil = require('./lib/vs-util');
 var EasyFTP = require('easy-ftp');
@@ -171,14 +172,22 @@ function activate(context) {
     });
   });
   
-  var ftpSave = vscode.commands.registerCommand('ftp.remote.save', function () { 
-    var localFilePath = vsUtil.getActiveFilePath();
+  var ftpSave = vscode.commands.registerCommand('ftp.remote.save', function (item) {
+    var localFilePath, isForceUpload = false;
+    if(item)
+    {
+      isForceUpload = true;
+      localFilePath = pathUtil.normalize(item.fsPath);
+    }
+    else localFilePath = vsUtil.getActiveFilePath();
+
+    var isDir = fileUtil.isDirSync(localFilePath);
     if(!localFilePath)
     {
       vsUtil.msg("Please select a file to upload");
       return;
     }
-    if(vsUtil.isUntitled())
+    if(!isDir && vsUtil.isUntitled())
     {
       vsUtil.msg("Please save first");
       return;
@@ -188,7 +197,7 @@ function activate(context) {
     getSelectedFTPConfig(function(ftpConfig)
     {
       var ftp = createFTP(ftpConfig);
-      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path or file want to save", [{label:".", description:ftpConfig.path}], function selectItem(item, path, filePath){
+      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:ftpConfig.path}], (isDir ? "D" : null), function selectItem(item, path, filePath){
         if(item)
         {
           if(filePath)
@@ -200,8 +209,8 @@ function activate(context) {
             var fileName = pathUtil.getFileName(localFilePath);
             var isInput = false;
             vsUtil.input({value : fileName
-              , placeHolder : "Write the file name"
-              , prompt : "Write the file name"
+              , placeHolder : "Write the " + (isDir ? "directory" : "file") + " name"
+              , prompt : "Write the " + (isDir ? "directory" : "file") + " name"
               , validateInput : function(value){
                   return isInput = /[\\\/|*?<>:"]/.test(value) ? true : null;
               }
@@ -228,8 +237,9 @@ function activate(context) {
         else close();
 
         function upload(ftp, ftpConfig, localPath, remotePath){
+          if(isDir) localPath = localPath + "/**";
           ftp.upload(localPath, remotePath, function(err){
-            if(!err)
+            if(!err && !isForceUpload)
             {
               vsUtil.hide();
               downloadOpen(ftp, ftpConfig, remotePath, close);
@@ -238,9 +248,9 @@ function activate(context) {
           });
         }
         function confirmExist(ftp, localPath, remotePath, cb){
-          vsUtil.warning("Already exist file '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
+          vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
             if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
-            else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path or file want to save", [{label:".", description:path}], selectItem);
+            else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:path}], selectItem);
             else close();
           });
         }
@@ -266,10 +276,13 @@ function deactivate() {
 exports.deactivate = deactivate;
 
 function createFTP(ftpConfig, cb){
+  const TRY = 5;
+  var count = 0;
   var ftp = new EasyFTP();
   output("FTP Connecting... : " + ftpConfig.name);
   ftp.connect(ftpConfig);
   ftp.on("open", function(){
+    count = TRY;
     output("FTP open!!");
     if(cb) cb();
   });
@@ -278,6 +291,14 @@ function createFTP(ftpConfig, cb){
   });
   ftp.on("error", function(err){
     output(err);
+    if(count < TRY)
+    {
+      count++;
+      setTimeout(function(){
+        output("FTP Connecting try... : " + ftpConfig.name);
+        ftp.connect(ftpConfig);
+      }, 200);
+    }
   });
   ftp.on("upload", function(path){
     output("Uploaded : " + path);
@@ -370,7 +391,7 @@ function getSelectedFTPFile(ftp, ftpConfig, path, placeHolder, addItems, filter,
     var arr = [];
     for(var i in list)
     {
-      if(filter === undefined || filter === list[i].type.toUpperCase())
+      if(!filter || filter === list[i].type.toUpperCase())
         arr.push({label:list[i].name, description:"TYPE : " + (list[i].type.toUpperCase() == "D" ? "Directory" : "File") + ", DATE : "+list[i].date.toLocaleString() + ", SIZE : " + filesize(list[i].size), type:list[i].type.toUpperCase()});
     }
     arr.sort(function(a,b){
