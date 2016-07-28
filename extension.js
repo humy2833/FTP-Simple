@@ -157,7 +157,7 @@ function activate(context) {
   
   var ftpSave = vscode.commands.registerCommand('ftp.remote.save', function (item) {
     var localFilePath, isForceUpload = false;
-    if(item)
+    if(item && item.fsPath)
     {
       isForceUpload = true;
       localFilePath = pathUtil.normalize(item.fsPath);
