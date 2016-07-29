@@ -316,15 +316,8 @@ function createFTP(ftpConfig, cb){
     if(ftps[key])
     {
       try{
-        ftps[key].pwd(function(err, path){       
-          if(err) 
-          {
-            if(cb)cb();
-          }
-          else 
-          {
-            setTimeout(function(){if(cb)cb(ftps[key]);}, 10);
-          }
+        ftps[key].pwd(function(err, path){
+          if(cb) process.nextTick(cb, err ? undefined : ftps[key]);
         });
       }catch(e){
         if(cb)cb();
@@ -333,7 +326,7 @@ function createFTP(ftpConfig, cb){
     else 
     {
       ftps[key] = new EasyFTP();
-      setTimeout(cb, 100);
+      process.nextTick(cb);
     }
     return ftps[key];
   }
