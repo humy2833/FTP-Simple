@@ -2,17 +2,23 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.1.14",
+  "version": "0.2.0",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
   },
-  "keywords" : ["ftp", "sftp", "remote", "download", "upload"],
+  "keywords": [
+    "ftp",
+    "sftp",
+    "remote",
+    "download",
+    "upload"
+  ],
   "categories": [
     "Other"
   ],
-	"license": "MIT",
-	"repository": {
+  "license": "MIT",
+  "repository": {
     "type": "git",
     "url": "https://github.com/humy2833/FTP-Simple.git"
   },
@@ -21,61 +27,89 @@
   },
   "icon": "logo.png",
   "activationEvents": [
-    "onCommand:ftp.remote.config",
-    "onCommand:ftp.remote.open",
-    "onCommand:ftp.remote.save",
-    "onCommand:ftp.remote.delete",
-    "onCommand:ftp.remote.mkdir"
+    "onCommand:ftp.config",
+    "onCommand:ftp.open",
+    "onCommand:ftp.save",
+    "onCommand:ftp.delete",
+    "onCommand:ftp.mkdir",
+    "onCommand:ftp.diff",
+    "onCommand:ftp.download"
   ],
   "main": "./extension",
   "contributes": {
     "commands": [
       {
-        "command": "ftp.remote.config",
+        "command": "ftp.config",
         "title": "ftp-simple : CONFIG - ftp connection setting"
       },
       {
-        "command": "ftp.remote.open",
+        "command": "ftp.open",
         "title": "ftp-simple : OPEN - download from ftp server"
       },
       {
-        "command": "ftp.remote.save",
+        "command": "ftp.save",
         "title": "ftp-simple : SAVE - upload to ftp server"
       },
       {
-        "command": "ftp.remote.delete",
+        "command": "ftp.delete",
         "title": "ftp-simple : DELETE - file or directory in ftp server(recursive)"
       },
       {
-        "command": "ftp.remote.mkdir",
+        "command": "ftp.mkdir",
         "title": "ftp-simple : CREATE DIRECTORY - to ftp server"
-      }      
-    ]
-    ,"keybindings": [
-			{
-				"command": "ftp.remote.save",
-				"key": "ctrl+shift+s",
-				"mac": "cmd+shift+s"
-			},
+      },
       {
-				"command": "ftp.remote.open",
-				"key": "ctrl+shift+o",
-				"mac": "cmd+shift+o"
-			}
-		]
-    ,"menus" : {
-      "explorer/context": [{
-        "command": "ftp.remote.save",
-        "group": "ftp-simple"
-      }],
-      "editor/context": [{
-        "command": "ftp.remote.save",
-        "group": "ftp-simple"
-      }],
-      "editor/title": [{
-        "command": "ftp.remote.save",
-        "group": "ftp-simple"
-      }]
+        "command": "ftp.diff",
+        "title": "ftp-simple : DIFF - local file and ftp server file"
+      },
+      {
+        "command": "ftp.download",
+        "title": "ftp-simple : DOWNLOAD - download in working directory from ftp server."
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "ftp.save",
+        "key": "ctrl+shift+s",
+        "mac": "cmd+shift+s"
+      },
+      {
+        "command": "ftp.open",
+        "key": "ctrl+shift+o",
+        "mac": "cmd+shift+o"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "ftp.save",
+          "group": "ftp-simple"
+        },
+        {
+          "command": "ftp.diff",
+          "group": "ftp-simple"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "ftp.save",
+          "group": "ftp-simple"
+        },
+        {
+          "command": "ftp.diff",
+          "group": "ftp-simple"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "ftp.save",
+          "group": "ftp-simple"
+        },
+        {
+          "command": "ftp.diff",
+          "group": "ftp-simple"
+        }
+      ]
     }
   },
   "scripts": {
@@ -86,6 +120,7 @@
   },
   "dependencies": {
     "easy-ftp": "^0.3.12",
+    "easy-loop": "^1.2.4",
     "filesize": "^3.3.0",
     "fs-extra": "^0.30.0"
   }

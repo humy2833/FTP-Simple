@@ -18,7 +18,8 @@ const REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
 function activate(context) {
   console.log("ftp-simple start");
   outputChannel = vsUtil.getOutputChannel("ftp-simple");
-
+  destroy();
+  
   vscode.workspace.onDidSaveTextDocument(function(event){
     var remoteTempPath = pathUtil.normalize(event.fileName);
     var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
@@ -50,7 +51,7 @@ function activate(context) {
     }
   });
 
-  var ftpConfig = vscode.commands.registerCommand('ftp.remote.config', function () {
+  var ftpConfig = vscode.commands.registerCommand('ftp.config', function () {
       //확장 설정 가져오기(hello.abcd 일때);
       //console.log(JSON.stringify(vscode.workspace.getConfiguration('hello')));
       if(initConfig()){
@@ -58,15 +59,74 @@ function activate(context) {
       }
   });
 
-  var ftpDelete = vscode.commands.registerCommand('ftp.remote.delete', function () {
+  var ftpDownload = vscode.commands.registerCommand('ftp.download', function () {
+    var workspacePath = vsUtil.getWorkspacePath();
+    if(!workspacePath)
+    {
+      vsUtil.msg("Please, open the workspace directory first.");
+      return;
+    }
+    getSelectedFTPConfig(function(ftpConfig)
+    {
+      var ftp = createFTP(ftpConfig);
+      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file or directory want to download", ".", function(serverItem, serverParentPath, serverFilePath){
+        getSelectedLocalPath(workspacePath, workspacePath, "Select the path want to download", ".", "D", selectItem); 
+        function selectItem(item, parentPath, filePath){
+          var isDir = serverFilePath ? false : true;
+          var localPath = isDir ? pathUtil.join(parentPath, pathUtil.getFileName(serverParentPath)) : pathUtil.join(parentPath, serverItem.label);
+          var remotePath = isDir ? serverParentPath + "/**" : serverFilePath;
+          if(fileUtil.existSync(localPath))
+          {
+            confirmExist(ftp, isDir, parentPath, remotePath, localPath);
+          }
+          else
+          {
+            download(ftp, remotePath, localPath);
+          }
+        }
+        function confirmExist(ftp, isDir, path, remotePath, localPath){
+          vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+localPath+"'. Overwrite?", "Back", "OK").then(function(btn){
+            if(btn == "OK") download(ftp, remotePath, localPath);
+            else if(btn == "Back") getSelectedLocalPath(path, workspacePath, "Select the path want to download", ".", "D", selectItem);
+          });
+        }
+        function download(ftp, remotePath, localPath, cb){
+          ftp.download(remotePath, localPath, function(err){
+            if(!err && !serverFilePath) output(ftpConfig.name + " - Directory downloaded : " + localPath);
+            if(cb)cb();
+          })
+        }       
+      });
+    });
+  });
+
+  var ftpDiff = vscode.commands.registerCommand('ftp.diff', function (item) {
+      var localFilePath = vsUtil.getActiveFilePath(item, "Please select a file to compare");
+      if(!localFilePath) return;
+      if(fileUtil.isDirSync(localFilePath))
+      {
+        vsUtil.msg("Select a file. The directory is impossible.");
+        return;
+      }
+      getSelectedFTPConfig(function(ftpConfig)
+      {
+        var ftp = createFTP(ftpConfig);
+        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file want to compare", function selectItem(item, parentPath, filePath){
+          download(ftp, ftpConfig, filePath, function(err, path){
+            if(!err)
+            {
+              vsUtil.diff(localFilePath, path);
+            }
+          });
+        });
+      });
+  });
+
+  var ftpDelete = vscode.commands.registerCommand('ftp.delete', function () {
     getSelectedFTPConfig(function(ftpConfig)
     {
       var ftp = createFTP(ftpConfig);
       getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file or path want to delete", [{label:".", description:ftpConfig.path}], function selectItem(item, parentPath, filePath){
-        if(!item)
-        {
-          return;
-        }
         var deletePath = filePath ? filePath : parentPath;
         vsUtil.warning("Are you sure you want to delete '"+deletePath+"'?", "Back", "OK")
         .then(function(btn){
@@ -83,15 +143,11 @@ function activate(context) {
     }); 
   });
 
-  var ftpMkdir = vscode.commands.registerCommand('ftp.remote.mkdir', function () {
+  var ftpMkdir = vscode.commands.registerCommand('ftp.mkdir', function () {
     getSelectedFTPConfig(function(ftpConfig)
     {
       var ftp = createFTP(ftpConfig);
       getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path want to create directory", [{label:".", description:ftpConfig.path}], "D", function selectItem(item, parentPath, filePath){
-        if(!item)
-        {
-          return;
-        }
         create(ftp, parentPath);
       });
       function create(ftp, path, value){
@@ -143,98 +199,77 @@ function activate(context) {
     }); 
   });
 
-  var ftpOpen = vscode.commands.registerCommand('ftp.remote.open', function () {
+  var ftpOpen = vscode.commands.registerCommand('ftp.open', function () {
     getSelectedFTPConfig(function(ftpConfig)
     {
       var ftp = createFTP(ftpConfig);    
-      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file want to open", function(item, parentPath, filePath){          
-        if(item){
-          downloadOpen(ftp, ftpConfig, filePath);
-        }
+      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file want to open", function(item, parentPath, filePath){
+        downloadOpen(ftp, ftpConfig, filePath);
       });
     });
   });
   
-  var ftpSave = vscode.commands.registerCommand('ftp.remote.save', function (item) {
-    var localFilePath, isForceUpload = false;
-    if(item && item.fsPath)
-    {
-      isForceUpload = true;
-      localFilePath = pathUtil.normalize(item.fsPath);
-    }
-    else localFilePath = vsUtil.getActiveFilePath();
-
+  var ftpSave = vscode.commands.registerCommand('ftp.save', function (item) {
+    var localFilePath = vsUtil.getActiveFilePath(item, "Please select a file to upload");
+    if(!localFilePath) return;
+    var isForceUpload = item && item.fsPath ? true : false;
     var isDir = fileUtil.isDirSync(localFilePath);
-    if(!localFilePath)
-    {
-      vsUtil.msg("Please select a file to upload");
-      return;
-    }
-    if(!isDir && vsUtil.isUntitled())
-    {
-      vsUtil.msg("Please save first");
-      return;
-    }
-    if(vsUtil.isDirty())  vsUtil.save();
-
     getSelectedFTPConfig(function(ftpConfig)
     {
       var ftp = createFTP(ftpConfig);
-      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:ftpConfig.path}], (isDir ? "D" : null), function selectItem(item, path, filePath){
-        if(item)
+      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:ftpConfig.path}], (isDir ? "D" : null), selectItem);
+      
+      function selectItem(item, path, filePath){
+        if(filePath)
         {
-          if(filePath)
-          {
-            confirmExist(ftp, localFilePath, filePath);
-          }
-          else
-          {
-            var fileName = pathUtil.getFileName(localFilePath);
-            var isInput = false;
-            vsUtil.input({value : fileName
-              , placeHolder : "Write the " + (isDir ? "directory" : "file") + " name"
-              , prompt : "Write the " + (isDir ? "directory" : "file") + " name"
-              , validateInput : function(value){
-                  return isInput = /[\\\/|*?<>:"]/.test(value) ? true : null;
-              }
-            }).then(function(name){
-              if(name) existProc(name);
-              else 
+          confirmExist(ftp, path, localFilePath, filePath);
+        }
+        else
+        {
+          var fileName = pathUtil.getFileName(localFilePath);
+          var isInput = false;
+          vsUtil.input({value : fileName
+            , placeHolder : "Write the " + (isDir ? "directory" : "file") + " name"
+            , prompt : "Write the " + (isDir ? "directory" : "file") + " name"
+            , validateInput : function(value){
+                return isInput = /[\\\/|*?<>:"]/.test(value) ? true : null;
+            }
+          }).then(function(name){
+            if(name) existProc(name);
+            else 
+            {
+              if(isInput) vsUtil.error("Filename to include inappropriate words.");
+            }
+          });
+
+          function existProc(fileName){
+            exist(ftp, path, fileName, function(result){
+              if(result) confirmExist(ftp, path, localFilePath, pathUtil.join(path, fileName));
+              else
               {
-                if(isInput) vsUtil.error("Filename to include inappropriate words.");
+                upload(ftp, ftpConfig, localFilePath, pathUtil.join(path, fileName));
               }
             });
-
-            function existProc(fileName){
-              exist(ftp, path, fileName, function(result){
-                if(result) confirmExist(ftp, localFilePath, pathUtil.join(path, fileName));
-                else
-                {
-                  upload(ftp, ftpConfig, localFilePath, pathUtil.join(path, fileName));
-                }
-              });
-              }
           }
         }
-
-        function upload(ftp, ftpConfig, localPath, remotePath){
-          if(isDir) localPath = localPath + "/**";
-          ftp.upload(localPath, remotePath, function(err){
-            if(!err && !isForceUpload)
-            {
-              vsUtil.hide();
-              downloadOpen(ftp, ftpConfig, remotePath);
-            }
-            if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
-          });
-        }
-        function confirmExist(ftp, localPath, remotePath, cb){
-          vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
-            if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
-            else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:path}], selectItem);
-          });
-        }
-      });
+      }
+      function upload(ftp, ftpConfig, localPath, remotePath){
+        if(isDir) localPath = localPath + "/**";
+        ftp.upload(localPath, remotePath, function(err){
+          if(!err && !isForceUpload)
+          {
+            vsUtil.hide();
+            downloadOpen(ftp, ftpConfig, remotePath);
+          }
+          if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
+        });
+      }
+      function confirmExist(ftp, path, localPath, remotePath){
+        vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
+          if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
+          else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:path}], selectItem);
+        });
+      }
     });
   });
 
@@ -243,17 +278,21 @@ function activate(context) {
   context.subscriptions.push(ftpMkdir);
   context.subscriptions.push(ftpOpen);
   context.subscriptions.push(ftpSave);
+  context.subscriptions.push(ftpDiff);
+  context.subscriptions.push(ftpDownload);
 }
 exports.activate = activate;
 
 // this method is called when your extension is deactivated
 function deactivate() {
   closeFTPAll();
-  fse.remove(pathUtil.getParentPath(REMOTE_TEMP_PATH), function(){
-  });
+  destroy();
 }
 exports.deactivate = deactivate;
 
+function destroy(){
+  fse.remove(pathUtil.getParentPath(REMOTE_TEMP_PATH), function(){});
+}
 function createFTP(ftpConfig, cb){
   var ftp = getFTP(ftpConfig.host, function(result){
     if(result)
@@ -403,6 +442,23 @@ function getSelectedFTPConfig(cb){
     if(cb)cb(getFTPConfig(ftpsConfig, name));
   });
 }
+function getSelectedLocalPath(path, rootPath, placeHolder, addItems, filter, cb){
+  vsUtil.getFileItemForPick(path, filter, function(items){
+    arr = vsUtil.addItemForFile(items, addItems, path, rootPath);
+    vsUtil.pick(arr, placeHolder + ".  Now path '" + path + "'").then(function(item){
+      if(item)
+      {
+        if(item.label == ".."){
+          getSelectedLocalPath(pathUtil.getParentPath(path), rootPath, placeHolder, addItems, filter, cb);
+        }else if(item.type === "D"){
+          getSelectedLocalPath(pathUtil.join(path, item.label), rootPath, placeHolder, addItems, filter, cb);
+        }else{
+          if(cb)cb(item, path, item.type ? pathUtil.join(path, item.label) : null);
+        }
+      }
+    });
+  });
+}
 function getSelectedFTPFile(ftp, ftpConfig, path, placeHolder, addItems, filter, cb){
   if(typeof addItems === 'function')
   {
@@ -422,39 +478,18 @@ function getSelectedFTPFile(ftp, ftpConfig, path, placeHolder, addItems, filter,
       vsUtil.error("Not exist '"+path+"'");
       return;
     }
-    var arr = [];
-    for(var i in list)
-    {
-      if(!filter || filter === list[i].type.toUpperCase())
-        arr.push({label:list[i].name, description:"TYPE : " + (list[i].type.toUpperCase() == "D" ? "Directory" : "File") + ", DATE : "+list[i].date.toLocaleString() + ", SIZE : " + filesize(list[i].size), type:list[i].type.toUpperCase()});
-    }
-    arr.sort(function(a,b){
-      if(a.type < b.type || a.type == b.type && a.label < b.label) return -1;
-      if(a.type > b.type || a.type == b.type && a.label > b.label) return 1;
-      return 0;
-    });
-    if(addItems)
-    {
-      for(var i in addItems)
-      {
-        if(addItems[i].label && addItems[i].description && addItems[i].label == ".")
-        {
-          addItems[i].description = "Current directory : " + path;
-          break;
-        }
-      }
-      arr = addItems.concat(arr);
-    }
-    if(path.length > ftpConfig.path.length) arr = [{label:"..", description:"Go to parent directory : " + pathUtil.getParentPath(path)}].concat(arr);
+    var arr = vsUtil.makePickItemForFile(list, filter);
+    arr = vsUtil.addItemForFile(arr, addItems, path, ftpConfig.path);
     vsUtil.pick(arr, placeHolder + ".  Now path '" + path + "'").then(function(item){
-      if(!item){
-        if(cb)cb();
-      }else if(item.label == ".."){
-        getSelectedFTPFile(ftp, ftpConfig, pathUtil.getParentPath(path), placeHolder, addItems, filter, cb);
-      }else if(item.type === "D"){
-        getSelectedFTPFile(ftp, ftpConfig, pathUtil.join(path, item.label), placeHolder, addItems, filter, cb);
-      }else{
-        if(cb)cb(item, path, item.type ? pathUtil.join(path, item.label) : null);
+      if(item)
+      {
+        if(item.label == ".."){
+          getSelectedFTPFile(ftp, ftpConfig, pathUtil.getParentPath(path), placeHolder, addItems, filter, cb);
+        }else if(item.type === "D"){
+          getSelectedFTPFile(ftp, ftpConfig, pathUtil.join(path, item.label), placeHolder, addItems, filter, cb);
+        }else{
+          if(cb)cb(item, path, item.type ? pathUtil.join(path, item.label) : null);
+        }
       }
     });
   });
@@ -470,16 +505,21 @@ function getFTPConfigFromRemoteTempPath(remoteTempPath){
   }
   return {config : ftpConfig, path : remotePath};
 }
-function downloadOpen(ftp, ftpConfig, remotePath, cb){
+function download(ftp, ftpConfig, remotePath, cb){
   var localPath = pathUtil.join(REMOTE_TEMP_PATH, commonUtil.md5(ftpConfig.host), remotePath);
-  ftp.download(remotePath, localPath, function(path){
+  ftp.download(remotePath, localPath, function(err){
+    if(cb)cb(err, localPath);
+  });
+}
+function downloadOpen(ftp, ftpConfig, remotePath, cb){
+  download(ftp, ftpConfig, remotePath, function(err, localPath){
     if(cb)cb();
-    fs.stat(localPath, function(err){
-      if(!err)
-      {
-        vsUtil.open(localPath);
-      }
-    });
+    if(!err)
+    {
+      fs.stat(localPath, function(err){
+        if(!err) vsUtil.open(localPath);
+      });
+    }
   });
 }
 function exist(ftp, path, name, cb){

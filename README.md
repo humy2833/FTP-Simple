@@ -2,16 +2,20 @@
 
 - Directly **Open**, **Edit** and **Save** on server files.
 - **Save** the **local file** or **directory** to **server**(=upload)
+- **Download** the file or directory from ftp server.
 - **Create** a **directory** on the remote server directly.
 - **Delete** **directory**(recursive) and **files** directly from the server.
+- **Compare** a local file server file.
 
 ##Available commands
 * config - Set the ftp connection information.
 * create directory - Create a directory on ftp server.
-* open - Open the file directly from ftp server.
+* open - Open the file directly from ftp server and when you save upload it to the ftp server.
 * save - File or directory upload to ftp server.(Available from the context menu)
+* download - Download the file or directory from ftp server to the workspace.
 * delete - Delete the file or directory directly from ftp server.
-
+* diff - Compare a local file server file.
+ 
 ##Startup Settings
 1. Press 'F1'  
 2. Enter 'ftp-simple' 
@@ -21,7 +25,7 @@
 ##Config setting example
 See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 
-* **name** - _string_	- (option) Display name.
+* **name** - _string_	- Display name.
 * **host** - _string_	- server domain or ip.
 * **port** - _number_	- (option) port (default : 21)
 * **type** - _string_	- (option) ftp type. 'ftp' or 'sftp' (default : 'ftp')
