@@ -69,31 +69,33 @@ function activate(context) {
     getSelectedFTPConfig(function(ftpConfig)
     {
       var ftp = createFTP(ftpConfig);
-      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file or directory want to download", ".", function(serverItem, serverParentPath, serverFilePath){
+      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file or directory want to download", [".", "*"], function(serverItem, serverParentPath, serverFilePath){
         getSelectedLocalPath(workspacePath, workspacePath, "Select the path want to download", ".", "D", selectItem); 
         function selectItem(item, parentPath, filePath){
+          var isAll = serverItem.label === "*";
           var isDir = serverFilePath ? false : true;
-          var localPath = isDir ? pathUtil.join(parentPath, pathUtil.getFileName(serverParentPath)) : pathUtil.join(parentPath, serverItem.label);
+          var localPath = isDir ? (isAll ? parentPath : pathUtil.join(parentPath, pathUtil.getFileName(serverParentPath))) : pathUtil.join(parentPath, serverItem.label);
           var remotePath = isDir ? serverParentPath + "/**" : serverFilePath;
-          if(fileUtil.existSync(localPath))
+          if(isAll || fileUtil.existSync(localPath))
           {
-            confirmExist(ftp, isDir, parentPath, remotePath, localPath);
+            confirmExist(ftp, isDir, parentPath, remotePath, localPath, isAll);
           }
           else
           {
             download(ftp, remotePath, localPath);
           }
         }
-        function confirmExist(ftp, isDir, path, remotePath, localPath){
-          vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+localPath+"'. Overwrite?", "Back", "OK").then(function(btn){
-            if(btn == "OK") download(ftp, remotePath, localPath);
+        function confirmExist(ftp, isDir, path, remotePath, localPath, isAll){
+          var title = "Already exist " + (isDir ? "directory" : "file") + " '"+localPath+"'. Overwrite?";
+          if(isAll) title = "If the file exists it is overwritten by force. Continue?";
+          vsUtil.warning(title, "Back", "OK").then(function(btn){
+            if(btn == "OK") download(ftp, remotePath, localPath, isAll);
             else if(btn == "Back") getSelectedLocalPath(path, workspacePath, "Select the path want to download", ".", "D", selectItem);
           });
         }
-        function download(ftp, remotePath, localPath, cb){
+        function download(ftp, remotePath, localPath, isAll){
           ftp.download(remotePath, localPath, function(err){
-            if(!err && !serverFilePath) output(ftpConfig.name + " - Directory downloaded : " + localPath);
-            if(cb)cb();
+            if(!err && !serverFilePath) output(ftpConfig.name + " - Directory downloaded : " + localPath + (isAll ? "/*" : ""));
           })
         }       
       });
