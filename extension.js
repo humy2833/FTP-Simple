@@ -216,63 +216,83 @@ function activate(context) {
     if(!localFilePath) return;
     var isForceUpload = item && item.fsPath ? true : false;
     var isDir = fileUtil.isDirSync(localFilePath);
-    getSelectedFTPConfig(function(ftpConfig)
+    var isIncludeDir = true;    
+    if(isDir)
     {
-      var ftp = createFTP(ftpConfig);
-      getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:ftpConfig.path}], (isDir ? "D" : null), selectItem);
-      
-      function selectItem(item, path, filePath){
-        if(filePath)
-        {
-          confirmExist(ftp, path, localFilePath, filePath);
-        }
-        else
-        {
-          var fileName = pathUtil.getFileName(localFilePath);
-          var isInput = false;
-          vsUtil.input({value : fileName
-            , placeHolder : "Write the " + (isDir ? "directory" : "file") + " name"
-            , prompt : "Write the " + (isDir ? "directory" : "file") + " name"
-            , validateInput : function(value){
-                return isInput = /[\\\/|*?<>:"]/.test(value) ? true : null;
-            }
-          }).then(function(name){
-            if(name) existProc(name);
-            else 
-            {
-              if(isInput) vsUtil.error("Filename to include inappropriate words.");
-            }
-          });
-
-          function existProc(fileName){
-            exist(ftp, path, fileName, function(result){
-              if(result) confirmExist(ftp, path, localFilePath, pathUtil.join(path, fileName));
-              else
+      var fileName = pathUtil.getFileName(localFilePath);
+      selectUploadType(fileName, function(includeDir){
+        isIncludeDir = includeDir;
+        saveMain();
+      });
+    }
+    else
+    {
+      saveMain();
+    }
+    function saveMain(){
+      getSelectedFTPConfig(function(ftpConfig)
+      {
+        var ftp = createFTP(ftpConfig);
+        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:ftpConfig.path}], (isDir ? "D" : null), selectItem);
+        
+        function selectItem(item, path, filePath){
+          if(filePath)
+          {
+            confirmExist(ftp, path, localFilePath, filePath);
+          }
+          else if(isIncludeDir)
+          {
+            var fileName = pathUtil.getFileName(localFilePath);
+            var isInput = false;
+            vsUtil.input({value : fileName
+              , placeHolder : "Write the " + (isDir ? "directory" : "file") + " name"
+              , prompt : "Write the " + (isDir ? "directory" : "file") + " name"
+              , validateInput : function(value){
+                  return isInput = /[\\\/|*?<>:"]/.test(value) ? true : null;
+              }
+            }).then(function(name){
+              if(name) existProc(name);
+              else 
               {
-                upload(ftp, ftpConfig, localFilePath, pathUtil.join(path, fileName));
+                if(isInput) vsUtil.error("Filename to include inappropriate words.");
               }
             });
+
+            function existProc(fileName){
+              exist(ftp, path, fileName, function(result){
+                if(result) confirmExist(ftp, path, localFilePath, pathUtil.join(path, fileName));
+                else
+                {
+                  upload(ftp, ftpConfig, localFilePath, pathUtil.join(path, fileName));
+                }
+              });
+            }
+          }
+          else
+          {
+            upload(ftp, ftpConfig, localFilePath, path);
           }
         }
-      }
-      function upload(ftp, ftpConfig, localPath, remotePath){
-        if(isDir) localPath = localPath + "/**";
-        ftp.upload(localPath, remotePath, function(err){
-          if(!err && !isForceUpload)
-          {
-            vsUtil.hide();
-            downloadOpen(ftp, ftpConfig, remotePath);
-          }
-          if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
-        });
-      }
-      function confirmExist(ftp, path, localPath, remotePath){
-        vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
-          if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
-          else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:path}], selectItem);
-        });
-      }
-    });
+        function upload(ftp, ftpConfig, localPath, remotePath){
+          if(isDir) localPath = localPath + "/**";
+          ftp.upload(localPath, remotePath, function(err){
+            if(!err && !isForceUpload)
+            {
+              vsUtil.hide();
+              downloadOpen(ftp, ftpConfig, remotePath);
+            }
+            if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
+          });
+        }
+        function confirmExist(ftp, path, localPath, remotePath){
+          vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
+            if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
+            else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:path}], selectItem);
+          });
+        }
+      });
+    }
+    
   });
 
   context.subscriptions.push(ftpConfig);
@@ -356,18 +376,34 @@ function createFTP(ftpConfig, cb){
     var key = commonUtil.md5(host);
     if(ftps[key])
     {
+      var isTimeout = false;
+      var flag = setTimeout(function(){
+        isTimeout = true;
+        newInstance();
+        if(cb) process.nextTick(cb);
+      }, 3000);
       try{
         ftps[key].pwd(function(err, path){
-          if(cb) process.nextTick(cb, err ? undefined : ftps[key]);
+          clearTimeout(flag);
+          if(!isTimeout)
+          {
+            if(err) newInstance();
+            if(cb) process.nextTick(cb, err ? undefined : ftps[key]);
+          }
         });
       }catch(e){
+        newInstance();
         if(cb)cb();
       }
     }
     else 
     {
+      newInstance();
+      if(cb) process.nextTick(cb);
+    }
+    function newInstance(){
+      if(ftps[key]) ftps[key].close();
       ftps[key] = new EasyFTP();
-      process.nextTick(cb);
     }
     return ftps[key];
   }
@@ -537,5 +573,10 @@ function exist(ftp, path, name, cb){
       }
     }
     if(cb)cb(same);
+  });
+}
+function selectUploadType(dirName, cb){
+  vsUtil.pick([{label:dirName, description:"Including the selected directory", type:'d'}, {label:dirName + "/**", description:"Exclude the selected directory. If exist file, force overwrite.", type:'f'}], "Choose the uploaded type", function(item){
+    cb(item.type === 'd');
   });
 }
