@@ -2,7 +2,7 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
@@ -27,44 +27,42 @@
   },
   "icon": "logo.png",
   "activationEvents": [
-    "onCommand:ftp.config",
-    "onCommand:ftp.open",
-    "onCommand:ftp.save",
-    "onCommand:ftp.delete",
-    "onCommand:ftp.mkdir",
-    "onCommand:ftp.diff",
-    "onCommand:ftp.download"
+    "*"
   ],
   "main": "./extension",
   "contributes": {
     "commands": [
       {
         "command": "ftp.config",
-        "title": "ftp-simple : CONFIG - ftp connection setting"
+        "title": "ftp-simple : Config - ftp connection setting"
       },
       {
         "command": "ftp.open",
-        "title": "ftp-simple : OPEN - download from ftp server"
+        "title": "ftp-simple : Open - download from ftp server"
       },
       {
         "command": "ftp.save",
-        "title": "ftp-simple : SAVE - upload to ftp server"
+        "title": "ftp-simple : Save - upload to ftp server"
       },
       {
         "command": "ftp.delete",
-        "title": "ftp-simple : DELETE - file or directory in ftp server(recursive)"
+        "title": "ftp-simple : Delete - file or directory in ftp server(recursive)"
       },
       {
         "command": "ftp.mkdir",
-        "title": "ftp-simple : CREATE DIRECTORY - to ftp server"
+        "title": "ftp-simple : Create directory - to ftp server"
       },
       {
         "command": "ftp.diff",
-        "title": "ftp-simple : DIFF - local file and ftp server file"
+        "title": "ftp-simple : Diff - local file and ftp server file"
       },
       {
         "command": "ftp.download",
-        "title": "ftp-simple : DOWNLOAD - download in working directory from ftp server."
+        "title": "ftp-simple : Download - download in working directory from ftp server."
+      },
+      {
+        "command": "ftp.remote.workspace.open",
+        "title": "ftp-simple : Remote directory open to workspace"
       }
     ],
     "keybindings": [
@@ -88,6 +86,10 @@
         {
           "command": "ftp.diff",
           "group": "ftp-simple"
+        },
+        {
+          "command": "ftp.delete",
+          "group": "ftp-simple"
         }
       ],
       "editor/context": [
@@ -98,6 +100,10 @@
         {
           "command": "ftp.diff",
           "group": "ftp-simple"
+        },
+        {
+          "command": "ftp.delete",
+          "group": "ftp-simple"
         }
       ],
       "editor/title": [
@@ -107,6 +113,10 @@
         },
         {
           "command": "ftp.diff",
+          "group": "ftp-simple"
+        },
+        {
+          "command": "ftp.delete",
           "group": "ftp-simple"
         }
       ]
@@ -119,7 +129,7 @@
     "vscode": "^0.11.0"
   },
   "dependencies": {
-    "easy-ftp": "^0.3.13",
+    "easy-ftp": "^0.3.17",
     "easy-loop": "^1.2.4",
     "filesize": "^3.3.0",
     "fs-extra": "^0.30.0"

@@ -2,5 +2,6 @@
 typings/**
 test/**
 .gitignore
+.gitattributes
 jsconfig.json
 vsc-extension-quickstart.md

@@ -6,6 +6,7 @@
 - **Create** a **directory** on the remote server directly.
 - **Delete** **directory**(recursive) and **files** directly from the server.
 - **Compare** a local file server file.
+- ** Remote directory open to workspace** (Beta version)
 
 ##Available commands
 * config - Set the ftp connection information.
@@ -15,6 +16,13 @@
 * download - Download the file or directory from ftp server to the workspace.
 * delete - Delete the file or directory directly from ftp server.
 * diff - Compare a local file server file.
+* Remote directory open to workspace - (Beta version) Open the direcotry directly on workspace from ftp server.
+ - Available function
+ -- File Save
+ -- 'Delete' of Context menu 
+	
+                                     
+																		 
  
 ##Startup Settings
 1. Press 'F1'  
