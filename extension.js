@@ -325,10 +325,8 @@ function activate(context) {
       });
       var column = 1;
       function selectFirst(path){
-        getSelectedFTPFile(ftp, ftpConfig, path, "Select the file want to open", function(item, parentPath, filePath){
-          console.log(parentPath);
-          downloadOpen(ftp, ftpConfig, filePath, function(err){
-            console.log("opened", column);
+        getSelectedFTPFile(ftp, ftpConfig, path, "Select the file want to open", function(item, parentPath, filePath){          
+          downloadOpen(ftp, ftpConfig, filePath, function(err){            
             if(!err && column <= 3) selectFirst(parentPath);
           }, column++);
         });
@@ -736,6 +734,7 @@ function downloadRemoteWorkspace(ftp, host, remotePath, cb, notMsg, notRecursive
   //if(fileUtil.existSync(localPath)) fileUtil.rmSync(localPath);
   if(!notMsg) vsUtil.msg("Please wait......Remote Info downloading...");
   removeRefreshRemoteTimer();
+  
   emptyDownload(remotePath, localPath, function(err){
     setRefreshRemoteTimer();
     if(cb)cb(localPath);
@@ -749,16 +748,15 @@ function downloadRemoteWorkspace(ftp, host, remotePath, cb, notMsg, notRecursive
       {
         if(remoteFileList.length > 0) fileUtil.mkdirSync(localPath);
         fileUtil.ls(localPath, function(err, localFileList){
-          loop(remoteFileList, function(i, value, next){
+          loop(remoteFileList, 2, function(i, value, next){
             var newFilePath = pathUtil.join(localPath, value.name);
             if(value.type === 'd')
-            {              
+            {
               if(notRecursive) next();
               else
               {
-                fileUtil.mkdirSync(newFilePath);
-                emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, function(){
-                  next();
+                fileUtil.mkdir(newFilePath, function(){
+                  emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, next);
                 });
               }
             }
