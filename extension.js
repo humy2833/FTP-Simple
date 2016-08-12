@@ -130,7 +130,10 @@ function activate(context) {
     getSelectedFTPConfig(function(ftpConfig)
     {
       var ftp = createFTP(ftpConfig, function(){
-        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file or directory want to download", [".", "*"], function(serverItem, serverParentPath, serverFilePath){
+        selectFirst(ftpConfig.path);
+      });
+      function selectFirst(path){
+        getSelectedFTPFile(ftp, ftpConfig, path, "Select the file or directory want to download", [".", "*"], function(serverItem, serverParentPath, serverFilePath){
           getSelectedLocalPath(workspacePath, workspacePath, "Select the path want to download", ".", "D", selectItem); 
           function selectItem(item, parentPath, filePath){
             var isAll = serverItem.label === "*";
@@ -156,11 +159,16 @@ function activate(context) {
           }
           function download(ftp, remotePath, localPath, isAll){
             ftp.download(remotePath, localPath, function(err){
-              if(!err && !serverFilePath) output(ftpConfig.name + " - Directory downloaded : " + localPath + (isAll ? "/*" : ""));
+              if(!err) 
+              {
+                if(!serverFilePath)
+                  output(ftpConfig.name + " - Directory downloaded : " + localPath + (isAll ? "/*" : ""));
+                selectFirst(pathUtil.getParentPath(remotePath));
+              }
             })
           }       
         });
-      });
+      }
     });
   }));
 
@@ -219,21 +227,28 @@ function activate(context) {
     getSelectedFTPConfig(function(ftpConfig)
     {
       var ftp = createFTP(ftpConfig, function(){
-        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file or path want to delete", [{label:".", description:ftpConfig.path}], function selectItem(item, parentPath, filePath){
+        selectFirst(ftpConfig.path);
+      });
+      function selectFirst(path){
+        getSelectedFTPFile(ftp, ftpConfig, path, "Select the file or path want to delete", [{label:".", description:ftpConfig.path}], function selectItem(item, parentPath, filePath){
           var deletePath = filePath ? filePath : parentPath;
           vsUtil.warning("Are you sure you want to delete '"+deletePath+"'?", "Back", "OK")
           .then(function(btn){
-            if(btn == "OK") 
+            if(btn == "OK")
             {
               ftp.rm(deletePath, function(err){
                 if(err) vsUtil.error(err.toString());
-                else output("Deleted : " + deletePath);
+                else 
+                {
+                  output("Deleted : " + deletePath);
+                  selectFirst(filePath ? parentPath : pathUtil.getParentPath(parentPath));
+                }
               });
             }
             else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, parentPath, "Select the file or path want to delete", [{label:".", description:parentPath}], selectItem);
           });
         });
-      });
+      }
     }); 
   }));
 
@@ -241,10 +256,13 @@ function activate(context) {
     getSelectedFTPConfig(function(ftpConfig)
     {
       var ftp = createFTP(ftpConfig, function(){
-        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path want to create directory", [{label:".", description:ftpConfig.path}], "D", function selectItem(item, parentPath, filePath){
+        selectFirst(ftpConfig.path);
+      });
+      function selectFirst(path){
+        getSelectedFTPFile(ftp, ftpConfig, path, "Select the path want to create directory", [{label:".", description:ftpConfig.path}], "D", function selectItem(item, parentPath, filePath){
           create(ftp, parentPath);
         });
-      });
+      }
       
       function create(ftp, path, value){
         var isInput = false;
@@ -277,7 +295,11 @@ function activate(context) {
               {
                 var p = pathUtil.join(path, name);
                 ftp.mkdir(p, function(err){
-                  if(!err) output("Create directory : " + p);
+                  if(!err) 
+                  {
+                    output("Create directory : " + p);
+                    selectFirst(path);
+                  }
                 });
               }
             });
@@ -299,10 +321,18 @@ function activate(context) {
     getSelectedFTPConfig(function(ftpConfig)
     {
       var ftp = createFTP(ftpConfig, function(){
-        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file want to open", function(item, parentPath, filePath){
-          downloadOpen(ftp, ftpConfig, filePath);
-        });
+          selectFirst(ftpConfig.path);
       });
+      var column = 1;
+      function selectFirst(path){
+        getSelectedFTPFile(ftp, ftpConfig, path, "Select the file want to open", function(item, parentPath, filePath){
+          console.log(parentPath);
+          downloadOpen(ftp, ftpConfig, filePath, function(err){
+            console.log("opened", column);
+            if(!err && column <= 3) selectFirst(parentPath);
+          }, column++);
+        });
+      }
     });
   }));
   
@@ -657,15 +687,21 @@ function download(ftp, ftpConfig, remotePath, cb){
     if(cb)cb(err, localPath);
   });
 }
-function downloadOpen(ftp, ftpConfig, remotePath, cb){
-  download(ftp, ftpConfig, remotePath, function(err, localPath){
-    if(cb)cb();
+function downloadOpen(ftp, ftpConfig, remotePath, cb, column){
+  download(ftp, ftpConfig, remotePath, function(err, localPath){    
     if(!err)
     {
       fs.stat(localPath, function(err){
-        if(!err) vsUtil.open(localPath);
+        if(!err)
+        { 
+          vsUtil.open(localPath, column, function(){
+            if(cb)cb();
+          });
+        }
+        else if(cb)cb(err);
       });
     }
+    else if(cb)cb(err);
   });
 }
 function exist(ftp, path, name, cb){
@@ -735,41 +771,9 @@ function downloadRemoteWorkspace(ftp, host, remotePath, cb, notMsg, notRecursive
                 }
                 else next();
               });
-              // var exist = false;
-              // for(var i=0, len=localFileList.length; i<len; i++)
-              // {
-              //   if(localFileList[i] && value.name === localFileList[i].name)
-              //   {
-              //     exist = true;
-              //     delete localFileList[i];
-              //     break;
-              //   }
-              // }
-              // if(!exist)
-              // {
-              //   fileUtil.writeFile(newFilePath, "", function(){next();});
-              // }
-              // else next();
             }            
           }, function(err){
             deleteDiff(localFileList, remoteFileList);
-            // for(var i=0, len=localFileList.length; i<len; i++)
-            // {
-            //   if(localFileList[i] && localFileList[i].size === 0)              
-            //   {
-            //     var isDel = true;
-            //     if(localFileList[i].type === 'd')
-            //     {
-            //       //isDel = fileUtil.lsSync(localFileList[i].path) == 0;
-            //       console.log("폴더 삭제 : ", localFileList[i].path);
-            //     }
-            //     if(isDel)
-            //     {
-            //       fileUtil.rmSync(pathUtil.join(localPath, localFileList[i].name));
-            //       console.log("삭제 : ", localPath, localFileList[i].name);
-            //     }
-            //   }
-            // }
             if(cb) cb(err);
           });
         }); 
