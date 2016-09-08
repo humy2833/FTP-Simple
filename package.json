@@ -129,7 +129,7 @@
     "vscode": "^0.11.0"
   },
   "dependencies": {
-    "easy-ftp": "^0.3.20",
+    "easy-ftp": "^0.3.22",
     "easy-loop": "^1.4.4",
     "filesize": "^3.3.0",
     "fs-extra": "^0.30.0"
