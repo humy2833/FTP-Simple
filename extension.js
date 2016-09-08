@@ -732,7 +732,7 @@ function isCurrentWorkspace(host, remotePath){
 function downloadRemoteWorkspace(ftp, host, remotePath, cb, notMsg, notRecursive){
   var localPath = getRemoteWorkspace(host, remotePath);
   //if(fileUtil.existSync(localPath)) fileUtil.rmSync(localPath);
-  if(!notMsg) vsUtil.msg("Please wait......Remote Info downloading...");
+  if(!notMsg) vsUtil.msg("Please wait......Remote Info downloading... You can see 'output console'");
   removeRefreshRemoteTimer();
   
   emptyDownload(remotePath, localPath, function(err){
@@ -741,14 +741,14 @@ function downloadRemoteWorkspace(ftp, host, remotePath, cb, notMsg, notRecursive
   });
 
   function emptyDownload(remotePath, localPath, cb){    
-    //console.log("emptyDownload: ", remotePath, localPath);
+    //console.log("emptyDownload: ", remotePath, localPath);    
     ftp.ls(remotePath, function(err, remoteFileList){
       if(err && cb) cb();
       else
       {
         if(remoteFileList.length > 0) fileUtil.mkdirSync(localPath);
-        fileUtil.ls(localPath, function(err, localFileList){
-          loop(remoteFileList, 2, function(i, value, next){
+        fileUtil.ls(localPath, function(err, localFileList){         
+          loop(remoteFileList, function(i, value, next){
             var newFilePath = pathUtil.join(localPath, value.name);
             if(value.type === 'd')
             {
@@ -765,7 +765,8 @@ function downloadRemoteWorkspace(ftp, host, remotePath, cb, notMsg, notRecursive
               fileUtil.stat(newFilePath, function(stat){
                 if(!stat)
                 {
-                  fileUtil.writeFile(newFilePath, "", next);
+                  output("Remote info download : " + newFilePath); 
+                  fileUtil.writeFile(newFilePath, "", next);                  
                 }
                 else next();
               });
