@@ -40,6 +40,7 @@ See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 * **username** - _string_	- username for authentication.
 * **password** - _string_	- password for authentication.
 * **path** - _string_	- (option) remote root path. **Default:** '/'
+* **autosave** - boolean	- (option) To determine whether the automatically uploaded when you open a file directly and modify and save. **Default:** true
 * **privateKey** - _string_	- (option) sftp only. string that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
 
 Example

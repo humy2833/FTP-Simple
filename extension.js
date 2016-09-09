@@ -31,7 +31,7 @@ function activate(context) {
   vscode.workspace.onDidSaveTextDocument(function(event){
     var remoteTempPath = pathUtil.normalize(event.fileName);
     var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
-    if(ftpConfig.config && ftpConfig.path)
+    if(ftpConfig.config && ftpConfig.path && ftpConfig.config.autosave === true)
     {
       var ftp = createFTP(ftpConfig.config, function(){
         ftp.upload(remoteTempPath, ftpConfig.path);
@@ -82,7 +82,7 @@ function activate(context) {
         }
       });
     }
-    if(ftpConfigFromTempDir.config && ftpConfigFromTempDir.path)
+    if(ftpConfigFromTempDir.config && ftpConfigFromTempDir.path && ftpConfigFromTempDir.config.autosave === true)
     {
       vsUtil.status("If save, Auto save to remote server.");
     }
@@ -95,7 +95,7 @@ function activate(context) {
   subscriptions.push(vscode.commands.registerCommand('ftp.config', function () {
     //확장 설정 가져오기(hello.abcd 일때);
     //console.log(JSON.stringify(vscode.workspace.getConfiguration('hello')));
-    if(initConfig()){
+    if(initConfig().result){
       vsUtil.openTextDocument(CONFIG_PATH);
     }
   }));
@@ -542,25 +542,37 @@ function closeFTPAll(){
     delete ftps[i];
   }
 }
+function setDefaultConfig(config){
+  for(var i=0; i<config.length; i++)
+  {
+    if(config[i].autosave === undefined) config[i].autosave = true;
+    if(config[i].path === undefined) config[i].path = "/";
+  }
+  return config;
+}
 function initConfig(){
   var result = true;
   try{
     var json = vsUtil.getConfig(CONFIG_NAME, JSON.parse);
     if(json === undefined){
-      fs.writeFileSync(CONFIG_PATH, JSON.stringify([{name:"localhost", host:"", port:21, type:"ftp", username:"", password:"", path:"/"}], null, "\t"));
+      var str = JSON.stringify([{name:"localhost", host:"", port:21, type:"ftp", username:"", password:"", path:"/"}], null, "\t");
+      fs.writeFileSync(CONFIG_PATH, str);
+      json = JSON.parse(str);
     }
+    json = setDefaultConfig(json);
   }catch(e){
     //console.log(e);
     vsUtil.msg("Check config file.");
     result = false;
   }
-  return result;
+  return {result:result, json:json};
 }
 function getConfig(){
   var json = {};
-  if(initConfig())
+  var config = initConfig();
+  if(config.result)
   {
-    json = vsUtil.getConfig(CONFIG_NAME, JSON.parse);
+    json = config.json;
   }
   return json;
 }
