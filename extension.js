@@ -688,7 +688,12 @@ function getFTPConfigFromRemoteTempPath(remoteTempPath){
   {
     var tempDirName = remoteTempPath.substring(tempPath.length + 1);
     remotePath = tempDirName.substring(tempDirName.indexOf("/"));
-    tempDirName = tempDirName.substring(0, tempDirName.indexOf("/"));
+    tempDirName = tempDirName.substring(0, tempDirName.indexOf("/"));    
+    if(!tempDirName)
+    {
+      tempDirName = remotePath;
+      remotePath = "/";
+    }
     ftpConfig = getFTPConfig(getConfig(), tempDirName);
   }
   return {config : ftpConfig, path : remotePath};
