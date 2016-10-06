@@ -2,7 +2,7 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
@@ -34,35 +34,35 @@
     "commands": [
       {
         "command": "ftp.config",
-        "title": "ftp-simple : Config - ftp connection setting"
+        "title": "ftp-simple : Config - FTP connection setting"
       },
       {
         "command": "ftp.open",
-        "title": "ftp-simple : Open - download from ftp server"
+        "title": "ftp-simple : Open - open the file directly from FTP server"
       },
       {
         "command": "ftp.save",
-        "title": "ftp-simple : Save - upload to ftp server"
+        "title": "ftp-simple : Save - upload to FTP server"
       },
       {
         "command": "ftp.delete",
-        "title": "ftp-simple : Delete - file or directory in ftp server(recursive)"
+        "title": "ftp-simple : Delete - file or directory in FTP server(recursive)"
       },
       {
         "command": "ftp.mkdir",
-        "title": "ftp-simple : Create directory - to ftp server"
+        "title": "ftp-simple : Create directory - to FTP server"
       },
       {
         "command": "ftp.diff",
-        "title": "ftp-simple : Diff - local file and ftp server file"
+        "title": "ftp-simple : Diff - local file and FTP server file"
       },
       {
         "command": "ftp.download",
-        "title": "ftp-simple : Download - download in working directory from ftp server."
+        "title": "ftp-simple : Download - download in working directory from FTP server."
       },
       {
         "command": "ftp.remote.workspace.open",
-        "title": "ftp-simple : Remote directory open to workspace"
+        "title": "ftp-simple : remote directory open to workspace"
       }
     ],
     "keybindings": [

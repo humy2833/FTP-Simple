@@ -454,7 +454,7 @@ function createFTP(ftpConfig, cb){
       var count = 0;
       //var ftp = new EasyFTP();
       output(ftpConfig.name + " - " + "FTP Connecting...");
-      ftp.connect(ftpConfig);
+      try{ftp.connect(ftpConfig);}catch(e){console.log("catch : ", e);}
       ftp.on("open", function(){        
         count = TRY;
         output(ftpConfig.name + " - " + "FTP open!!");
@@ -468,6 +468,7 @@ function createFTP(ftpConfig, cb){
       ftp.on("error", function(err){
         output(ftpConfig.name + " - " + err);
         if(String(err).indexOf("Timed out while waiting for handshake") > -1) TRY = 0;
+        else if(String(err).indexOf("530 Please login with USER and PASS") > -1) TRY = 0;
         if(count < TRY)
         {
           count++;
@@ -475,6 +476,12 @@ function createFTP(ftpConfig, cb){
             output(ftpConfig.name + " - " + "FTP Connecting try...");
             ftp.connect(ftpConfig);
           }, 200);
+        }
+        else if(count == TRY)
+        {
+          var s = String(err);
+          //if(/^Error\: \d+ /.test(s)) s = s.replace(/^Error\: \d+ /, '');
+          vsUtil.error(ftpConfig.name + " - Connect fail : " + s);
         }
       });
       ftp.on("upload", function(path){
