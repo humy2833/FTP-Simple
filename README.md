@@ -54,6 +54,16 @@ Example
 		"username": "id",
 		"password": "pw",
 		"path" : "/"
-	}
+	},
+	{
+		"name": "my server2",
+		"host": "127.0.0.1",
+		"port": 22,
+		"type": "sftp",
+		"username": "id",
+		"password": "pw",
+		"path" : "/"
+	},
+	....
 ]
 ```
