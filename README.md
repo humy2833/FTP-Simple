@@ -1,7 +1,7 @@
 ##Function
 
 - Directly **Open**, **Edit** and **Save** on server files.
-- **Save** the **local file** or **directory** to **server**(=upload)
+- **Save** the **local file** or **directory** to **server**(=upload and backup option)
 - **Download** the file or directory from ftp server.
 - **Create** a **directory** on the remote server directly.
 - **Delete** **directory**(recursive) and **files** directly from the server.
@@ -40,7 +40,8 @@ See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 * **username** - _string_	- username for authentication.
 * **password** - _string_	- password for authentication.
 * **path** - _string_	- (option) remote root path. **Default:** '/'
-* **autosave** - boolean	- (option) To determine whether the automatically uploaded when you open a file directly and modify and save. **Default:** true
+* **autosave** - _boolean_	- (option) To determine whether the automatically uploaded when you open a file directly and modify and save. **Default:** true
+* **backup** - _string_	- (option) The local path you want to back up before file saving on the server.
 * **privateKey** - _string_	- (option) sftp only. string that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
 
 Example
@@ -62,7 +63,18 @@ Example
 		"type": "sftp",
 		"username": "id",
 		"password": "pw",
-		"path" : "/"
+		"path" : "/",
+		"autosave" : false
+	},
+	{
+		"name": "my server3",
+		"host": "127.0.0.1",
+		"port": 21,
+		"type": "sftp",
+		"username": "id",
+		"password": "pw",
+		"path" : "/",
+		"backup" : "C:/backup"
 	},
 	....
 ]
