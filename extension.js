@@ -7,6 +7,7 @@ var pathUtil = require('./lib/path-util');
 var fileUtil = require('./lib/file-util');
 var commonUtil = require('./lib/common-util');
 var vsUtil = require('./lib/vs-util');
+var cryptoUtil = require('./lib/crypto-util');
 var EasyFTP = require('easy-ftp');
 var outputChannel = null;
 var root = null;
@@ -16,6 +17,7 @@ const CONFIG_NAME = "ftp-simple.json";
 const CONFIG_FTP_TEMP = "/ftp-simple/remote-temp";
 const CONFIG_FTP_WORKSPACE_TEMP = "/ftp-simple/remote-workspace-temp";
 const CONFIG_PATH = vsUtil.getConfigPath(CONFIG_NAME);
+const CONFIG_PATH_TEMP = vsUtil.getConfigPath("ftp-simple-temp.json");
 const REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
 const REMOTE_WORKSPACE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_WORKSPACE_TEMP);
 
@@ -40,6 +42,16 @@ function activate(context) {
         });
       });
     }
+    else if(CONFIG_PATH_TEMP == remoteTempPath)
+    {      
+      var val = fs.readFileSync(CONFIG_PATH_TEMP).toString();
+      try{
+        val = JSON.parse(val);
+        writeConfigFile(val);
+      }catch(e){
+        vsUtil.error("Fail to save. Check Simple-FTP config file syntax.");
+      }
+    }
   });
   vscode.workspace.onDidCloseTextDocument(function(event){
     var remoteTempPath = pathUtil.normalize(event.fileName);
@@ -61,7 +73,11 @@ function activate(context) {
     }
     else if(ftpConfig.config && ftpConfig.path)
     {
-      fs.unlink(pathUtil.normalize(event.fileName));
+      fileUtil.rm(pathUtil.normalize(event.fileName));
+    }
+    else if(CONFIG_PATH_TEMP == remoteTempPath)
+    {
+      fileUtil.rm(CONFIG_PATH_TEMP);
     }
   });
   vscode.window.onDidChangeActiveTextEditor(function(event){
@@ -100,8 +116,11 @@ function activate(context) {
   subscriptions.push(vscode.commands.registerCommand('ftp.config', function () {
     //확장 설정 가져오기(hello.abcd 일때);
     //console.log(JSON.stringify(vscode.workspace.getConfiguration('hello')));
-    if(initConfig().result){
-      vsUtil.openTextDocument(CONFIG_PATH);
+    var configSet = initConfig();
+    if(configSet.result){
+      fileUtil.writeFile(CONFIG_PATH_TEMP, JSON.stringify(configSet.json, null, '\t'), function(){
+        vsUtil.openTextDocument(CONFIG_PATH_TEMP);
+      });
     }
   }));
 
@@ -422,7 +441,6 @@ function activate(context) {
               list.forEach(function(v,i,arr){
                 arr[i] = pathUtil.join(remotePath, v.path.substring(wsLen));
               });
-              console.log(JSON.stringify(list, null, '\t'));
               //console.log(localPath.substring(wsLen), remotePath);
               backupList = list;
               localPath = localPath + "/**";
@@ -465,7 +483,7 @@ exports.activate = activate;
 
 // this method is called when your extension is deactivated
 function deactivate() {
-  closeFTPAll();
+  closeFTP();
   destroy();
 }
 exports.deactivate = deactivate;
@@ -478,6 +496,23 @@ function destroy(isStart){
   }
   fse.remove(REMOTE_TEMP_PATH, function(){});
 }
+function getPassword(ftpConfig, cb){
+  if(!ftpConfig.password && !ftpConfig.privateKey)
+  {
+    vsUtil.input({password:true, placeHolder:'Enter the FTP connect password'}).then(function(item){
+      if(item)
+      {
+        ftpConfig.password = item;
+        if(cb) cb();
+      }
+      else closeFTP(ftpConfig.host);
+    });
+  }
+  else if(cb)
+  {
+    cb()
+  }
+}
 function createFTP(ftpConfig, cb){
   var ftp = getFTP(ftpConfig.host, function(result){
     if(result)
@@ -486,45 +521,48 @@ function createFTP(ftpConfig, cb){
     }
     else
     {
-      var TRY = 5;
-      var count = 0;
-      //var ftp = new EasyFTP();
-      output(ftpConfig.name + " - " + "FTP Connecting...");
-      try{ftp.connect(ftpConfig);}catch(e){console.log("catch : ", e);}
-      ftp.on("open", function(){        
-        count = TRY;
-        output(ftpConfig.name + " - " + "FTP open!!");
-        //addFTP(ftpConfig.host, ftp);
-        if(cb) cb();
-      });
-      ftp.on("close", function(){
-        output(ftpConfig.name + " - " + "FTP close!!");
-        deleteFTP(ftpConfig.host);
-      });
-      ftp.on("error", function(err){
-        output(ftpConfig.name + " - " + err);
-        if(String(err).indexOf("Timed out while waiting for handshake") > -1) TRY = 0;
-        else if(String(err).indexOf("530 Please login with USER and PASS") > -1) TRY = 0;
-        if(count < TRY)
-        {
-          count++;
-          setTimeout(function(){
-            output(ftpConfig.name + " - " + "FTP Connecting try...");
-            ftp.connect(ftpConfig);
-          }, 200);
-        }
-        else if(count == TRY)
-        {
-          var s = String(err);
-          //if(/^Error\: \d+ /.test(s)) s = s.replace(/^Error\: \d+ /, '');
-          vsUtil.error(ftpConfig.name + " - Connect fail : " + s);
-        }
-      });
-      ftp.on("upload", function(path){
-        output(ftpConfig.name + " - " + "Uploaded : " + path);
-      });
-      ftp.on("download", function(path){
-        output(ftpConfig.name + " - " + "Downloaded : " + path);
+      getPassword(ftpConfig, function(){
+        var TRY = 5;
+        var count = 0;
+        //var ftp = new EasyFTP();
+        output(ftpConfig.name + " - " + "FTP Connecting...");
+        try{ftp.connect(ftpConfig);}catch(e){console.log("catch : ", e);}
+        ftp.on("open", function(){        
+          count = TRY;
+          output(ftpConfig.name + " - " + "FTP open!!");
+          //addFTP(ftpConfig.host, ftp);
+          if(cb) cb();
+        });
+        ftp.on("close", function(){
+          output(ftpConfig.name + " - " + "FTP close!!");
+          deleteFTP(ftpConfig.host);
+        });
+        ftp.on("error", function(err){
+          output(ftpConfig.name + " - " + err);
+          if(String(err).indexOf("Timed out while waiting for handshake") > -1) TRY = 0;
+          else if(String(err).indexOf("530 Please login with USER and PASS") > -1) TRY = 0;
+          if(count < TRY)
+          {
+            count++;
+            setTimeout(function(){
+              output(ftpConfig.name + " - " + "FTP Connecting try...");
+              ftp.connect(ftpConfig);
+            }, 200);
+          }
+          else if(count == TRY)
+          {
+            var s = String(err);
+            //if(/^Error\: \d+ /.test(s)) s = s.replace(/^Error\: \d+ /, '');
+            vsUtil.error(ftpConfig.name + " - Connect fail : " + s);
+            closeFTP(ftpConfig.host);
+          }
+        });
+        ftp.on("upload", function(path){
+          output(ftpConfig.name + " - " + "Uploaded : " + path);
+        });
+        ftp.on("download", function(path){
+          output(ftpConfig.name + " - " + "Downloaded : " + path);
+        });
       });
     }
   });
@@ -578,11 +616,20 @@ function createFTP(ftpConfig, cb){
     return ftps[key];
   }
 }
-function closeFTPAll(){
-  for(var i in ftps)
+function closeFTP(host){
+  if(host)
   {
-    try{ftps[i].close();}catch(e){}
-    delete ftps[i];
+    var key = commonUtil.md5(host);
+    try{ftps[key].close();}catch(e){}
+    try{delete ftps[key];}catch(e){}
+  } 
+  else
+  {
+    for(var i in ftps)
+    {    
+      try{ftps[i].close();}catch(e){}
+      delete ftps[i];
+    }
   }
 }
 function setDefaultConfig(config){
@@ -593,22 +640,52 @@ function setDefaultConfig(config){
   }
   return config;
 }
+function writeConfigFile(json){
+  fileUtil.writeFileSync(CONFIG_PATH, cryptoUtil.encrypt(JSON.stringify(json, null, '\t')));
+}
 function initConfig(){
   var result = true;
+  var json = vsUtil.getConfig(CONFIG_NAME);
+  try{
+    json = cryptoUtil.decrypt(json);
+    json = JSON.parse(json);
+  }catch(e){
+    //암호화 안된 파일일때
+    try{
+      json = JSON.parse(json);
+      writeConfigFile(json);
+    }catch(ee){
+      if(json === undefined){
+        //설정 없을때
+        json = [{name:"localhost", host:"", port:21, type:"ftp", username:"", password:"", path:"/"}];
+        writeConfigFile(json);
+      }else{
+        vsUtil.error("Check Simple-FTP config file syntax.");
+         fileUtil.writeFile(CONFIG_PATH_TEMP, json, function(){
+           vsUtil.openTextDocument(CONFIG_PATH_TEMP);
+         });
+        result = false;
+      }
+    }   
+  }
+  json = setDefaultConfig(json);
+  return {result:result, json:json};
+  /*
   try{
     var json = vsUtil.getConfig(CONFIG_NAME, JSON.parse);
     if(json === undefined){
-      var str = JSON.stringify([{name:"localhost", host:"", port:21, type:"ftp", username:"", password:"", path:"/"}], null, "\t");
-      fs.writeFileSync(CONFIG_PATH, str);
-      json = JSON.parse(str);
+      json = [{name:"localhost", host:"", port:21, type:"ftp", username:"", password:"", path:"/"}];
+      var str = JSON.stringify(json, null, "\t");
+      fs.writeFileSync(CONFIG_PATH, cryptoUtil.encrypt(str));
     }
     json = setDefaultConfig(json);
   }catch(e){
     //console.log(e);
-    vsUtil.msg("Check config file.");
+    vsUtil.msg("Check config file syntax.");
     result = false;
   }
   return {result:result, json:json};
+  */
 }
 function getConfig(){
   var json = {};
@@ -655,7 +732,7 @@ function getSelectedFTPConfig(cb){
     var ftps = getFTPNames(ftpsConfig);
     if(ftps.length == 0)
     {
-      vsUtil.msg('Check config file.');
+      vsUtil.error('Check Simple-FTP config file syntax.');
       return;
     }
     vsUtil.pick(ftps, "Select FTP server", function(name) {
@@ -986,8 +1063,7 @@ function backup(ftp, ftpConfig, path, cb){
     });
   }
   else 
-  {
-    console.log(cb);
+  { 
     cb();
   }
 }
