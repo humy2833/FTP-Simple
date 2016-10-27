@@ -30,6 +30,7 @@ function activate(context) {
   setRefreshRemoteTimer(true);
   
   vscode.workspace.onDidSaveTextDocument(function(event){
+    //console.log("onDidSaveTextDocument : ", event);
     var remoteTempPath = pathUtil.normalize(event.fileName);
     var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
     if(ftpConfig.config && ftpConfig.path && ftpConfig.config.autosave === true)
@@ -54,13 +55,17 @@ function activate(context) {
     }
   });
   vscode.workspace.onDidCloseTextDocument(function(event){
+    //파일 닫을때, 파일 형식 바뀔때
+    //console.log("onDidCloseTextDocument : ", event);
     var remoteTempPath = pathUtil.normalize(event.fileName);
     var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
     if(isRemoteTempWorkspaceFile(remoteTempPath))
     {
       if(fileUtil.existSync(remoteTempPath))
       {
-        fileUtil.writeFile(remoteTempPath, "", function(){});
+        runAfterCheck(remoteTempPath, function(){
+          fileUtil.writeFile(remoteTempPath, "", function(){});
+        });
       }
       else
       {
@@ -73,12 +78,30 @@ function activate(context) {
     }
     else if(ftpConfig.config && ftpConfig.path)
     {
-      fileUtil.rm(pathUtil.normalize(event.fileName));
+      var path = pathUtil.normalize(event.fileName);
+      runAfterCheck(path, function(){
+        fileUtil.rm(path);
+      });
     }
     else if(CONFIG_PATH_TEMP == remoteTempPath)
     {
       fileUtil.rm(CONFIG_PATH_TEMP);
     }
+  });
+  vscode.workspace.onDidChangeConfiguration(function(event){
+    //console.log("onDidChangeConfiguration : ", event);
+  });
+  vscode.workspace.onDidChangeTextDocument(function(event){
+    //소스 수정할때,파일 닫을때, 파일 형식 바뀔때
+    //console.log("onDidChangeTextDocument : ", event);
+  });
+  
+  vscode.window.onDidChangeTextEditorSelection(function(event){
+    //소스 수정할때,파일 닫을때
+    //console.log("onDidChangeTextEditorSelection : ", event);
+  });
+  vscode.window.onDidChangeTextEditorOptions(function(event){
+    //console.log("onDidChangeTextEditorOptions : ", event);
   });
   vscode.window.onDidChangeActiveTextEditor(function(event){
     var remoteTempPath = pathUtil.normalize(event.document.fileName);
@@ -90,7 +113,7 @@ function activate(context) {
       var ftp = createFTP(ftpConfigFromTempDir.config, function(){
         if(new Date().getTime() - stat.date.getTime() >= 100)
         {
-          ftp.download(ftpConfigFromTempDir.path, remoteTempPath, function(){            
+          ftp.download(ftpConfigFromTempDir.path, remoteTempPath, function(){
             downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, pathUtil.getParentPath(ftpConfigFromTempDir.path), function(localPath){
             }, true, true);
           });
@@ -112,6 +135,7 @@ function activate(context) {
       vsUtil.status("");
     }
   });
+  
 
   subscriptions.push(vscode.commands.registerCommand('ftp.config', function () {
     //확장 설정 가져오기(hello.abcd 일때);
@@ -1066,4 +1090,13 @@ function backup(ftp, ftpConfig, path, cb){
   { 
     cb();
   }
+}
+function runAfterCheck(path, cb){
+  setTimeout(function(){
+    if(path != vsUtil.getActiveFilePath())
+    {      
+      cb();
+      console.log("cb success");
+    }
+  }, 100);
 }
