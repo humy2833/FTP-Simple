@@ -35,14 +35,18 @@ See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 
 * **name** - _string_	- Display name.
 * **host** - _string_	- server domain or ip.
-* **port** - _number_	- (option) port (default : 21)
-* **type** - _string_	- (option) ftp type. 'ftp' or 'sftp' (default : 'ftp')
+* **port** - _number_	- (option) port (**Default:** : 21)
+* **type** - _string_	- (option) ftp type. 'ftp' or 'sftp' (**Default:** : 'ftp')
 * **username** - _string_	- username for authentication.
 * **password** - _string_	- (option) password for authentication.
+* **privateKey** - _string_	- (option) sftp only. string that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
 * **path** - _string_	- (option) remote root path. **Default:** '/'
 * **autosave** - _boolean_	- (option) To determine whether the automatically uploaded when you open a file directly and modify and save. **Default:** true
 * **backup** - _string_	- (option) The local path you want to back up before file saving on the server.
-* **privateKey** - _string_	- (option) sftp only. string that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
+* **confirm** - _boolean_	- (option) Only save option. When you save the file, ask if you want to overwrite the file if it already exists.. **Default:** true
+* **project** - _object_	- (option) Only save option. Pre-specify local workspace path and server root path to save directly without selecting a path. Overwrite unconditionally.
+
+
 
 Example
 ```json
@@ -74,7 +78,9 @@ Example
 		"username": "id",
 		"password": "pw",
 		"path" : "/",
-		"backup" : "C:/backup"
+		"confirm" : false,
+		"backup" : "C:/backup",
+		"project" :  {"c:/projects/project1":"/home/user/project"}
 	},
 	....
 ]

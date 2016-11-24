@@ -9,10 +9,13 @@ var commonUtil = require('./lib/common-util');
 var vsUtil = require('./lib/vs-util');
 var cryptoUtil = require('./lib/crypto-util');
 var EasyFTP = require('easy-ftp');
+var chokidar = require('chokidar');
 var outputChannel = null;
 var root = null;
 var ftps = {};
 var remoteRefreshFlag = false;
+var remoteRefreshStopFlag = false;
+var watcher = null;
 const CONFIG_NAME = "ftp-simple.json";
 const CONFIG_FTP_TEMP = "/ftp-simple/remote-temp";
 const CONFIG_FTP_WORKSPACE_TEMP = "/ftp-simple/remote-workspace-temp";
@@ -26,55 +29,36 @@ function activate(context) {
   console.log("ftp-simple start");
   outputChannel = vsUtil.getOutputChannel("ftp-simple");
   destroy(true);
- 
+  
   setRefreshRemoteTimer(true);
+  //startWatch();
+  
   
   vscode.workspace.onDidSaveTextDocument(function(event){
     //console.log("onDidSaveTextDocument : ", event);
-    var remoteTempPath = pathUtil.normalize(event.fileName);
-    var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
-    if(ftpConfig.config && ftpConfig.path && ftpConfig.config.autosave === true)
-    {
-      var ftp = createFTP(ftpConfig.config, function(){
-        backup(ftp, ftpConfig.config, ftpConfig.path, function(err){
-          ftp.upload(remoteTempPath, ftpConfig.path, function(err){
-            if(err) output("upload fail : " + ftpConfig.path + " => " + err.message);
-          });
-        });
-      });
-    }
-    else if(CONFIG_PATH_TEMP == remoteTempPath)
-    {      
-      var val = fs.readFileSync(CONFIG_PATH_TEMP).toString();
-      try{
-        val = JSON.parse(val);
-        writeConfigFile(val);
-      }catch(e){
-        vsUtil.error("Fail to save. Check Simple-FTP config file syntax.");
-      }
-    }
+    updateToRemoteTempPath(event.fileName);
   });
   vscode.workspace.onDidCloseTextDocument(function(event){
     //파일 닫을때, 파일 형식 바뀔때
-    //console.log("onDidCloseTextDocument : ", event);
     var remoteTempPath = pathUtil.normalize(event.fileName);
     var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
     if(isRemoteTempWorkspaceFile(remoteTempPath))
     {
-      if(fileUtil.existSync(remoteTempPath))
+      var stat = fileUtil.statSync(remoteTempPath);
+      if(stat && stat.size > 0)
       {
         runAfterCheck(remoteTempPath, function(){
           fileUtil.writeFile(remoteTempPath, "", function(){});
         });
       }
-      else
-      {
-        var ftp = createFTP(ftpConfig.config, function(){
-          ftp.rm(ftpConfig.path, function(err){
-            if(!err) output("Deleted : " + ftpConfig.path);
-          });
-        });
-      }
+      // else
+      // {
+      //   var ftp = createFTP(ftpConfig.config, function(){
+      //     ftp.rm(ftpConfig.path, function(err){
+      //       if(!err) output("Deleted : " + ftpConfig.path);
+      //     });
+      //   });
+      // }
     }
     else if(ftpConfig.config && ftpConfig.path)
     {
@@ -114,8 +98,9 @@ function activate(context) {
         if(new Date().getTime() - stat.date.getTime() >= 100)
         {
           ftp.download(ftpConfigFromTempDir.path, remoteTempPath, function(){
-            downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, pathUtil.getParentPath(ftpConfigFromTempDir.path), function(localPath){
-            }, true, true);
+            setTimeout(function(){
+              downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, pathUtil.getParentPath(ftpConfigFromTempDir.path), function(localPath){}, true, true);
+            }, 1000);
           });
         }
         else  //new file
@@ -160,7 +145,7 @@ function activate(context) {
           }
           downloadRemoteWorkspace(ftp, ftpConfig, parentPath, function(localPath){
             vsUtil.openFolder(localPath);
-          }, false, true);
+          }, false, 2);
         });
       });
     });
@@ -244,34 +229,12 @@ function activate(context) {
         
       });
   }));
-
+    
   subscriptions.push(vscode.commands.registerCommand('ftp.delete', function (item) {
     if(item)
     {
       var localFilePath = vsUtil.getActiveFilePath(item);
-      if(isRemoteTempWorkspaceFile(localFilePath))
-      {
-        var ftpConfig = getFTPConfigFromRemoteTempPath(localFilePath);
-        if(ftpConfig.config && ftpConfig.path)
-        {
-          var ftp = createFTP(ftpConfig.config, function(){
-            ftp.rm(ftpConfig.path, function(err){
-              if(!err)
-              {
-                fileUtil.rm(localFilePath, function(err){
-                  output("Deleted : " + ftpConfig.path);
-                });
-              }
-            });
-          });
-          return;
-        }
-      }
-      else
-      {
-        vsUtil.msg("Context menu 'Delete' is only possible to remote file or directory.");
-        return;
-      }
+      if(deleteToRemoteTempPath(localFilePath)) return;
     }
     getSelectedFTPConfig(function(ftpConfig)
     {
@@ -387,58 +350,103 @@ function activate(context) {
   }));
   
   subscriptions.push(vscode.commands.registerCommand('ftp.save', function (item) {
-    var localFilePath = vsUtil.getActiveFilePathAndMsg(item, "Please select a file to upload");
-    if(!localFilePath) return;
     var isForceUpload = item && item.fsPath ? true : false;
+    var localFilePath = vsUtil.getActiveFilePathAndMsg(item, "Please select a file to upload");
+    var workspacePath = vsUtil.getWorkspacePath();
+    if(item === null && workspacePath) 
+    {
+      localFilePath = workspacePath;
+      isForceUpload = true;
+    }
+    if(!localFilePath) return;
+    
+    var baseProjects = getProjectPathInConfig();
     var isDir = fileUtil.isDirSync(localFilePath);
     var isIncludeDir = true;
-    if(isDir)
-    {
-      var fileName = pathUtil.getFileName(localFilePath);
-      selectUploadType(fileName, function(includeDir){
-        isIncludeDir = includeDir;
-        saveMain();
-      });
-    }
-    else
-    {
-      saveMain();
-    }
-    function saveMain(){
-      getSelectedFTPConfig(function(ftpConfig)
-      {
-        var ftp = createFTP(ftpConfig, function(){
-          getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:ftpConfig.path}, "= CREATE DIRECTORY ="], (isDir ? "D" : null), selectItem);
-        });
-        
-        function selectItem(item, path, filePath){
-          if(filePath)
-          {
-            confirmExist(ftp, path, localFilePath, filePath);
-          }
-          else if(isIncludeDir)
-          {
-            var fileName = pathUtil.getFileName(localFilePath);
-            var isInput = false;            
-            //existProc(fileName);
-            vsUtil.input({value : fileName
-              , placeHolder : "Write the " + (isDir ? "directory" : "file") + " name"
-              , prompt : "Write the " + (isDir ? "directory" : "file") + " name"
-              , validateInput : function(value){
-                  isInput = /[\\\/|*?<>:"]/.test(value) ? true : null;
-                  //console.log("validateInput:"+value+"$",isInput);
-                  return isInput;
-              }
-            }).then(function(name){
-              //console.log("then:"+name+"$", isInput);
-              if(name) existProc(name);
-              else 
-              {
-                if(isInput) vsUtil.error("Filename to include inappropriate words.");
-              }
-            });
+    getSelectProject();
 
-            function existProc(fileName){
+    function getSelectProject(){
+      if(baseProjects)
+      {
+        getSelectedProjectFTPConfig(baseProjects, function(item){
+          if(item === 'SERVER ALL')
+          {
+            getSelectedFTPConfig(saveMain)
+          }
+          else if(item === 'SAVE ALL')
+          {
+            isForceUpload = true;
+            loop(baseProjects, function(i, value, next){
+              var ftp = createFTP(value.config, function(){
+                upload(ftp, value.config, localFilePath, pathUtil.join(value.path.remote, pathUtil.getRelativePath(workspacePath, localFilePath)), next);
+              });
+            });
+          }
+          else if(typeof item === 'object')
+          {
+            isForceUpload = true;
+            var ftp = createFTP(item, function(){
+              upload(ftp, item, localFilePath, pathUtil.join(item.remote, pathUtil.getRelativePath(workspacePath, localFilePath)));
+            });
+          }
+        });
+      }
+      else 
+      {
+        if(isDir)
+        {
+          var fileName = pathUtil.getFileName(localFilePath);
+          selectUploadType(fileName, function(includeDir){
+            isIncludeDir = includeDir;
+            getSelectedFTPConfig(saveMain);
+          });
+        }
+        else
+        {
+          getSelectedFTPConfig(saveMain);
+        }
+      }
+    }
+    function saveMain(ftpConfig){
+      var ftp = createFTP(ftpConfig, function(){
+        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:ftpConfig.path}, "= CREATE DIRECTORY ="], (isDir ? "D" : null), selectItem);
+      });
+      
+      function selectItem(item, path, filePath){
+        if(filePath)
+        {
+          if(ftpConfig.confirm === false) upload(ftp, ftpConfig, localFilePath, path);
+          else confirmExist(ftp, path, localFilePath, filePath);
+        }
+        else if(isIncludeDir)
+        {
+          var fileName = pathUtil.getFileName(localFilePath);
+          var isInput = false;            
+          //existProc(fileName);
+          vsUtil.input({value : fileName
+            , placeHolder : "Write the " + (isDir ? "directory" : "file") + " name"
+            , prompt : "Write the " + (isDir ? "directory" : "file") + " name"
+            , validateInput : function(value){
+                isInput = /[\\\/|*?<>:"]/.test(value) ? true : null;
+                //console.log("validateInput:"+value+"$",isInput);
+                return isInput;
+            }
+          }).then(function(name){
+            //console.log("then:"+name+"$", isInput);
+            if(name) existProc(name);
+            else 
+            {
+              if(isInput) vsUtil.error("Filename to include inappropriate words.");
+            }
+          });
+
+          function existProc(fileName){
+            if(ftpConfig.confirm === false)
+            {
+              upload(ftp, ftpConfig, localFilePath, pathUtil.join(path, fileName));
+            }
+            else
+            {
               exist(ftp, path, fileName, function(result){
                 if(result) confirmExist(ftp, path, localFilePath, pathUtil.join(path, fileName));
                 else
@@ -448,54 +456,56 @@ function activate(context) {
               });
             }
           }
-          else
-          {
-            upload(ftp, ftpConfig, localFilePath, path);
-          }
         }
-        function upload(ftp, ftpConfig, localPath, remotePath){
-          var backupList = [];
-          if(isDir)
-          {
-            
-            var wsLen = vsUtil.getWorkspacePath().length;
-            var folder = localPath.substring(wsLen);    
-            wsLen += folder.length;        
-            fileUtil.ls(localPath, function(err, list){
-              list.forEach(function(v,i,arr){
-                arr[i] = pathUtil.join(remotePath, v.path.substring(wsLen));
-              });
-              //console.log(localPath.substring(wsLen), remotePath);
-              backupList = list;
-              localPath = localPath + "/**";
-              main();
-            }, true);
-          }
-          else
-          {
-            backupList.push(remotePath);
-            main();
-          }
-          function main(){
-            backup(ftp, ftpConfig, backupList, function(err){
-              ftp.upload(localPath, remotePath, function(err){
-                if(!err && !isForceUpload)
-                {
-                  vsUtil.hide();
-                  downloadOpen(ftp, ftpConfig, remotePath);
-                }
-                if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
-                if(err) output("upload fail : " + remotePath + " => " + err.message);
-              });
-            });
-          }
+        else
+        {
+          upload(ftp, ftpConfig, localFilePath, path);
         }
-        function confirmExist(ftp, path, localPath, remotePath){
-          vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
-            if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
-            else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:path}], selectItem);
+      }
+    }
+    function upload(ftp, ftpConfig, localPath, remotePath, cb){
+      var backupList = [];
+      if(isDir)
+      {            
+        var wsLen = vsUtil.getWorkspacePath().length;
+        var folder = localPath.substring(wsLen);    
+        wsLen += folder.length;        
+        fileUtil.ls(localPath, function(err, list){
+          list.forEach(function(v,i,arr){
+            arr[i] = pathUtil.join(remotePath, v.path.substring(wsLen));
           });
-        }
+          //console.log(localPath.substring(wsLen), remotePath);
+          backupList = list;
+          localPath = localPath + "/**";
+          main();
+        }, true);
+      }
+      else
+      {
+        backupList.push(remotePath);
+        if(!isDir && ftpConfig.confirm === false) isForceUpload = true;
+        main();
+      }
+      function main(){
+        //console.log(localPath, remotePath);return;
+        backup(ftp, ftpConfig, backupList, function(err){
+          ftp.upload(localPath, remotePath, function(err){
+            if(!err && !isForceUpload)
+            {
+              vsUtil.hide();
+              downloadOpen(ftp, ftpConfig, remotePath);
+            }
+            if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
+            if(err) output("upload fail : " + remotePath + " => " + err.message);
+            if(cb) cb();
+          });
+        });
+      }
+    }
+    function confirmExist(ftp, path, localPath, remotePath){
+      vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
+        if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
+        else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:path}], selectItem);
       });
     }
     
@@ -660,6 +670,7 @@ function setDefaultConfig(config){
   for(var i=0; i<config.length; i++)
   {
     if(config[i].autosave === undefined) config[i].autosave = true;
+    if(config[i].confirm === undefined) config[i].confirm = true;
     if(config[i].path === undefined) config[i].path = "/";
   }
   return config;
@@ -749,6 +760,37 @@ function getFTPConfig(ftpsConfig, name){
     else ftpConfig.path = pathUtil.normalize(ftpConfig.path);
   }  
   return ftpConfig;
+}
+function getSelectedProjectFTPConfig(projects, cb){
+  const ALL = '= SHOW ALL SERVER LIST =';
+  const SAVE_ALL = '= SAVE ALL PROJECT =';
+  var list = [];
+  for(let i=0; i<projects.length; i++)
+  {
+    list.push({label:projects[i].config.name, description:projects[i].path.remote, idx:i});
+  }  
+  list.push({label:SAVE_ALL, description:'Unconditionally overwrite'});
+  list.push({label:ALL});
+  vsUtil.pick(list, 'Select the project to save').then(function(item){
+    if(item)
+    {
+      if(item.label == SAVE_ALL)
+      {
+        if(cb) cb('SAVE ALL');
+      }
+      else if(item.idx != undefined)
+      {
+        var o = projects[item.idx].config;
+        o.remote = item.description; 
+        if(cb)cb(o);
+      }
+      else if(item.label == ALL)
+      {
+        if(cb) cb('SERVER ALL');
+      }
+    }
+    else if(cb) cb();
+  });
 }
 function getSelectedFTPConfig(cb){
   return new Promise(function(resolve, reject){
@@ -954,27 +996,40 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
   var localPath = getRemoteWorkspace(ftpConfig, remotePath);
   //if(fileUtil.existSync(localPath)) fileUtil.rmSync(localPath);
   if(!notMsg) vsUtil.msg("Please wait......Remote Info downloading... You can see 'output console'");
+  //vsUtil.msg("Please wait......Remote Info downloading... You can see 'output console'");
   removeRefreshRemoteTimer();
-  
-  emptyDownload(remotePath, localPath, function(err){
+  emptyDownload(remotePath, localPath, function(err){ 
     setRefreshRemoteTimer();
     if(cb)cb(localPath);
-  });
+  }, typeof notRecursive === 'number' ? notRecursive : undefined);
 
-  function emptyDownload(remotePath, localPath, cb){
+  function emptyDownload(remotePath, localPath, cb, depth){
+    if(remoteRefreshStopFlag) 
+    {
+      cb();
+      return;
+    }
     ftp.ls(remotePath, function(err, remoteFileList){
-      if(err && cb) cb();
+      if(err && cb || remoteRefreshStopFlag) cb();
       else
       {
-        if(remoteFileList.length > 0) fileUtil.mkdirSync(localPath);
-        fileUtil.ls(localPath, function(err, localFileList){         
-          loop(remoteFileList, function(i, value, next){
+        if(remoteFileList.length > 0) 
+        {
+          fileUtil.mkdirSync(localPath);
+        }
+        fileUtil.ls(localPath, function(err, localFileList){
+          loop(remoteFileList, 20, function(i, value, next){
+            if(remoteRefreshStopFlag) 
+            {
+              next();
+              return;
+            }
             var newFilePath = pathUtil.join(localPath, value.name);
             if(value.type === 'd')
-            {
+            {              
               fileUtil.mkdir(newFilePath, function(){
-                if(notRecursive) next();
-                else emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, next);
+                if(notRecursive === true || depth === 0) next();
+                else emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
               });
             }
             else
@@ -989,14 +1044,14 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
               });
             }            
           }, function(err){
-            deleteDiff(localFileList, remoteFileList);
+            if(!remoteRefreshStopFlag) deleteDiff(localFileList, remoteFileList);
             if(cb) cb(err);
           });
         }); 
       }
     });
   } 
-  function deleteDiff(localList, remoteList){
+  function deleteDiff(localList, remoteList){    
     for(var i=0, ilen=localList.length; i<ilen; i++)
     {
       var exist = false;
@@ -1008,9 +1063,13 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
           break;
         }
       }
-      if(!exist && localList[i].size === 0)
+      if(!exist)// && localList[i].size === 0
       {
-        fileUtil.rmSync(localList[i].path); 
+        var docs = vsUtil.getActiveFilePathAll();
+        if(docs.indexOf(localList[i].path) === -1)
+        {
+          fileUtil.rm(localList[i].path);
+        }
       }
     }
   } 
@@ -1018,16 +1077,28 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
 function isRemoteTempWorkspaceFile(path){
   return path.indexOf(REMOTE_WORKSPACE_TEMP_PATH) === 0;
 }
-function autoRefreshRemoteTempFiles(){
+function autoRefreshRemoteTempFiles(notMsg, cb){
   var workspacePath = vsUtil.getWorkspacePath();
   if(workspacePath)
   {
+    if(remoteRefreshStopFlag) 
+    {
+      cb();
+      return;
+    }
     var ftpConfigFromTempDir = getFTPConfigFromRemoteTempPath(workspacePath);
     if(ftpConfigFromTempDir.config && ftpConfigFromTempDir.path)
-    {      
-      var ftp = createFTP(ftpConfigFromTempDir.config, function(){        
+    {
+      console.log("나 갱신한다.");      
+      var ftp = createFTP(ftpConfigFromTempDir.config, function(){
+        //stopWatch();
         downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, ftpConfigFromTempDir.path, function(){
-        }, true);
+          // 1 : 20121 
+          //20 : 18352
+          //50 : 4347
+          if(!notMsg)vsUtil.msg("Remote Info downloading end.");
+          if(cb)cb();
+        }, notMsg);
       });
     }
   }
@@ -1037,7 +1108,11 @@ function removeRefreshRemoteTimer(){
 }
 function setRefreshRemoteTimer(isNow){
   removeRefreshRemoteTimer();
-  remoteRefreshFlag = setTimeout(autoRefreshRemoteTempFiles, isNow ? 0 : 1000 * 60 * 3);
+  remoteRefreshFlag = setTimeout(function(){
+    autoRefreshRemoteTempFiles(isNow ? false : true, function(){
+      if(isNow)startWatch();
+    });
+  }, isNow ? 0 : 1000 * 60 * 1);
 }
 function backup(ftp, ftpConfig, path, cb){
   if(ftpConfig.backup)
@@ -1096,7 +1171,264 @@ function runAfterCheck(path, cb){
     if(path != vsUtil.getActiveFilePath())
     {      
       cb();
-      console.log("cb success");
     }
   }, 100);
+}
+function deleteToRemoteTempPath(localFilePath, cb){
+  if(isRemoteTempWorkspaceFile(localFilePath))
+  {
+    var ftpConfig = getFTPConfigFromRemoteTempPath(localFilePath);
+    if(ftpConfig.config && ftpConfig.path)
+    {
+      var ftp = createFTP(ftpConfig.config, function(){
+        backup(ftp, ftpConfig, ftpConfig.path, function(){
+          ftp.rm(ftpConfig.path, function(err){
+            if(!err)
+            {
+              fileUtil.rm(localFilePath, function(err){
+                output("Deleted : " + ftpConfig.path);
+                if(cb)cb();
+              });
+            }
+          });
+        });
+      });
+    }
+    return true;
+  }
+  else
+  {
+    vsUtil.msg("Context menu 'Delete' is only possible to remote file or directory.");
+    if(cb)cb();
+  }
+  return false;
+}
+function updateToRemoteTempPath(remoteTempPath, existCheck, cb){
+  if(typeof existCheck === 'function')
+  {
+    cb = existCheck;
+    existCheck = undefined;
+  }
+  remoteTempPath = pathUtil.normalize(remoteTempPath);
+  var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
+  if(ftpConfig.config && ftpConfig.path && ftpConfig.config.autosave === true)
+  {
+    var isDir = fileUtil.isDirSync(remoteTempPath);
+    var ftp = createFTP(ftpConfig.config, function(){
+      if(existCheck)
+      {
+        ftp.exist(remoteTempPath, function(result){
+          if(!result) main();
+        });
+      }
+      else main();
+
+      function main(){
+        remoteRefreshStopFlag = true;
+        setTimeout(function(){
+          backup(ftp, ftpConfig.config, ftpConfig.path, function(err){
+            ftp.upload(remoteTempPath + (isDir ? "/**" : ""), ftpConfig.path, function(err){
+              remoteRefreshStopFlag = false;
+              if(err) output("upload fail : " + ftpConfig.path + " => " + err);
+              if(cb) cb(err);
+            });
+          });
+        }, 10);        
+      }      
+    });
+  }
+  else if(CONFIG_PATH_TEMP == remoteTempPath)
+  {      
+    var val = fs.readFileSync(CONFIG_PATH_TEMP).toString();
+    try{
+      val = JSON.parse(val);
+      writeConfigFile(val);
+    }catch(e){
+      vsUtil.error("Fail to save. Check Simple-FTP config file syntax.");
+    }
+  }
+}
+function startWatch(){
+  console.log("startWatch : %s", vsUtil.getWorkspacePath());
+
+  //watch.createMonitor(vsUtil.getWorkspacePath(), {interval:1}, function (monitor) {
+    /*
+    monitor.on("created", function (path, stats) {
+      path = pathUtil.normalize(path);
+      console.log("create : ", path, stats);
+      if(fileUtil.isDirSync(path))
+      {
+        fileUtil.ls(path, function(err, list){
+          if(!err && list.length == 0)
+          {
+            updateToRemoteTempPath(path);
+          }
+          else if(!err)
+          {
+            for(var o of list)
+            {
+              if(o.size > 0)
+              {
+                updateToRemoteTempPath(path, true);
+                break;
+              }
+            }
+          }
+        }, true);
+      }
+      else
+      {
+        if(stats && stats.size)
+        {
+          updateToRemoteTempPath(path, true, function(err){
+            if(!err)fileUtil.writeFile(path, "");
+          });
+        }
+      }
+      
+      // Handle new files
+    });
+    */
+    // monitor.on("changed", function (path, curr, prev) {
+    //   console.log("changed : ", path, curr, prev);
+    //   // Handle file changes
+    // })
+    /*
+    monitor.on("removed", function (path, stats) {
+      path = pathUtil.normalize(path);
+      console.log("remove dir : ", path, stats);
+      if(fileUtil.isDirSync(path))
+      {
+        addJob(function(next){
+          deleteToRemoteTempPath(path, function(){next();});
+        });
+      }
+      else
+      {
+        fileUtil.exist(pathUtil.getParentPath(path), function(result){
+          if(result)
+          {
+            addJob(function(next){
+              deleteToRemoteTempPath(path, function(){next();});
+            });
+          }
+        });
+      }
+      
+      // Handle removed files
+    });
+
+    */
+    //monitor.stop(); // Stop watching
+  //});
+  
+
+
+
+  
+  watcher = chokidar.watch(vsUtil.getWorkspacePath(), {ignoreInitial:true, ignorePermissionErrors:true});
+  watcher.on('add', (path, stats) => {
+    path = pathUtil.normalize(path);
+    console.log('add', path, JSON.stringify(stats));    
+    if(stats && stats.size)
+    {
+      addJob(function(next){
+        updateToRemoteTempPath(path, function(err){
+          if(!err)fileUtil.writeFile(path, "");
+          next();
+        });
+      });
+    }
+  });
+  watcher.on('addDir', (path) => {
+    console.log('addDir', path);
+    path = pathUtil.normalize(path);
+    fileUtil.ls(path, function(err, list){
+      if(!err && list.length == 0)
+      {
+        addJob(function(next){
+          updateToRemoteTempPath(path, function(){next();});
+        });
+      }
+    });
+  });
+  /*
+  watcher.on('unlink', (path) => {
+    console.log('unlink', path);
+    path = pathUtil.normalize(path);
+    fileUtil.exist(pathUtil.getParentPath(path), function(result){
+      if(result) 
+      {
+        addJob(function(next){
+          deleteToRemoteTempPath(path, function(){next();});
+        });
+      }
+    });
+  });
+  */
+}
+function stopWatch(){
+  console.log("stopWatch");
+  if(watcher)watcher.close();
+  watcher = null;
+}
+var watchJob = {job:[], flag:false};
+function addJob(j){
+  watchJob.job.push(j);
+  playJob();
+}
+function playJob(){
+  if(watchJob.flag) return;
+  watchJob.flag = true;
+  var job = null;
+  loop.while(function(){
+    job = watchJob.job.shift();
+    return job ? true : false;
+  }, function(next){
+    job(next);
+  }, function(){
+    watchJob.flag = false;
+  });
+}
+function getProjectPathInConfig(){
+  var workspacePath = vsUtil.getWorkspacePath();
+  var config = getConfig();
+  var result = [];
+  if(config && config instanceof Array)
+  {
+    for(var o of config)
+    {
+      if(!o.project || typeof o.project !== 'object') continue;
+      for(var k in o.project)
+      {
+        var v = o.project[k];
+        if(v instanceof Array)
+        {
+          for(var a of v)
+          {
+            var p = same(k, a);
+            if(p) result.push({config:o, path:p});
+          }         
+        }
+        else
+        {
+          var p = same(k, v);
+          if(p) result.push({config:o, path:p});
+        }
+      }
+    }
+  }
+  function same(key, val){
+    if(/^[A-Z]\:/.test(key))
+    {
+      key = key.substring(0, 1).toLowerCase() + key.substring(1);
+    }
+    var arr = [key, pathUtil.normalize(key)];
+    if(arr.indexOf(workspacePath) > -1)
+    {
+      return {local:pathUtil.normalize(key), remote:pathUtil.normalize(val)};
+    }
+    return null;
+  }
+  return result.length ? result : null;
 }
