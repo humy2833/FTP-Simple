@@ -1111,7 +1111,7 @@ function setRefreshRemoteTimer(isNow){
     autoRefreshRemoteTempFiles(isNow ? false : true, function(){
       if(isNow)startWatch();
     });
-  }, isNow ? 0 : 1000 * 60 * 1);
+  }, isNow ? 0 : 1000 * 60 * 3);
 }
 function backup(ftp, ftpConfig, path, cb){
   if(ftpConfig.backup)
