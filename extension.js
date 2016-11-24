@@ -1349,20 +1349,19 @@ function startWatch(){
       }
     });
   });
-  /*
+  
   watcher.on('unlink', (path) => {
-    console.log('unlink', path);
     path = pathUtil.normalize(path);
-    fileUtil.exist(pathUtil.getParentPath(path), function(result){
-      if(result) 
-      {
+    //fileUtil.exist(pathUtil.getParentPath(path), function(result){
+    //  if(result) 
+    //  {
         addJob(function(next){
           deleteToRemoteTempPath(path, function(){next();});
         });
-      }
-    });
+    //  }
+    //});
   });
-  */
+  
 }
 function stopWatch(){
   console.log("stopWatch");
