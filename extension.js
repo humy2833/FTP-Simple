@@ -1088,8 +1088,7 @@ function autoRefreshRemoteTempFiles(notMsg, cb){
     }
     var ftpConfigFromTempDir = getFTPConfigFromRemoteTempPath(workspacePath);
     if(ftpConfigFromTempDir.config && ftpConfigFromTempDir.path)
-    {
-      console.log("나 갱신한다.");      
+    {      
       var ftp = createFTP(ftpConfigFromTempDir.config, function(){
         //stopWatch();
         downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, ftpConfigFromTempDir.path, function(){
@@ -1329,7 +1328,6 @@ function startWatch(){
   watcher = chokidar.watch(vsUtil.getWorkspacePath(), {ignoreInitial:true, ignorePermissionErrors:true});
   watcher.on('add', (path, stats) => {
     path = pathUtil.normalize(path);
-    console.log('add', path, JSON.stringify(stats));    
     if(stats && stats.size)
     {
       addJob(function(next){
@@ -1341,7 +1339,6 @@ function startWatch(){
     }
   });
   watcher.on('addDir', (path) => {
-    console.log('addDir', path);
     path = pathUtil.normalize(path);
     fileUtil.ls(path, function(err, list){
       if(!err && list.length == 0)
