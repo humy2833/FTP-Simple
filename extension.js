@@ -88,6 +88,7 @@ function activate(context) {
     //console.log("onDidChangeTextEditorOptions : ", event);
   });
   vscode.window.onDidChangeActiveTextEditor(function(event){
+    if(!event && !event.document)return;
     var remoteTempPath = pathUtil.normalize(event.document.fileName);
     // console.log("doc change : ", remoteTempPath);
     var ftpConfigFromTempDir = getFTPConfigFromRemoteTempPath(remoteTempPath);  
@@ -1018,19 +1019,24 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
           fileUtil.mkdirSync(localPath);
         }
         fileUtil.ls(localPath, function(err, localFileList){
-          loop(remoteFileList, 20, function(i, value, next){
-            if(remoteRefreshStopFlag) 
+          loop(remoteFileList, 1, function(i, value, next){
+            if(remoteRefreshStopFlag)
             {
               next();
               return;
             }
             var newFilePath = pathUtil.join(localPath, value.name);
             if(value.type === 'd')
-            {              
+            {
               fileUtil.mkdir(newFilePath, function(){
-                if(notRecursive === true || depth === 0) next();
-                else emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
+                // if(notRecursive === true || depth === 0) next();
+                // else emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
               });
+              if(notRecursive !== true && depth !== 0)
+              {
+                emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
+              }
+              else next();
             }
             else
             {
@@ -1038,10 +1044,10 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
                 if(!stat)
                 {
                   output("Remote info download : " + newFilePath); 
-                  fileUtil.writeFile(newFilePath, "", next);                  
+                  fileUtil.writeFile(newFilePath, "");
                 }
-                else next();
               });
+              next();
             }            
           }, function(err){
             if(!remoteRefreshStopFlag) deleteDiff(localFileList, remoteFileList);
@@ -1095,7 +1101,7 @@ function autoRefreshRemoteTempFiles(notMsg, cb){
           // 1 : 20121 
           //20 : 18352
           //50 : 4347
-          if(!notMsg)vsUtil.msg("Remote Info downloading end.");
+          if(!notMsg)vsUtil.msg("Remote Info downloading success.");
           if(cb)cb();
         }, notMsg);
       });
