@@ -88,7 +88,7 @@ function activate(context) {
     //console.log("onDidChangeTextEditorOptions : ", event);
   });
   vscode.window.onDidChangeActiveTextEditor(function(event){
-    if(!event && !event.document)return;
+    if(!event || !event.document)return;
     var remoteTempPath = pathUtil.normalize(event.document.fileName);
     // console.log("doc change : ", remoteTempPath);
     var ftpConfigFromTempDir = getFTPConfigFromRemoteTempPath(remoteTempPath);  
@@ -99,9 +99,12 @@ function activate(context) {
         if(new Date().getTime() - stat.date.getTime() >= 100)
         {
           ftp.download(ftpConfigFromTempDir.path, remoteTempPath, function(){
-            setTimeout(function(){
-              downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, pathUtil.getParentPath(ftpConfigFromTempDir.path), function(localPath){}, true, true);
-            }, 1000);
+            if(watcher)
+            {
+              setTimeout(function(){
+                downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, pathUtil.getParentPath(ftpConfigFromTempDir.path), function(localPath){}, true, true);
+              }, 1000);
+            }
           });
         }
         else  //new file
@@ -146,7 +149,7 @@ function activate(context) {
           }
           downloadRemoteWorkspace(ftp, ftpConfig, parentPath, function(localPath){
             vsUtil.openFolder(localPath);
-          }, false, 2);
+          }, false, 1);
         });
       });
     });
@@ -1018,14 +1021,20 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
         {
           fileUtil.mkdirSync(localPath);
         }
+        // var last = remoteFileList.indexOf("node_modules");
+        // if(last > -1)
+        // {
+        //   remoteFileList = remoteFileList.concat(remoteFileList.splice(last, 1));
+        // }
         fileUtil.ls(localPath, function(err, localFileList){
-          loop(remoteFileList, 1, function(i, value, next){
+          loop(remoteFileList, 10, function(i, value, next){
             if(remoteRefreshStopFlag)
             {
               next();
               return;
             }
             var newFilePath = pathUtil.join(localPath, value.name);
+            console.log(newFilePath);
             if(value.type === 'd')
             {
               fileUtil.mkdir(newFilePath, function(){
