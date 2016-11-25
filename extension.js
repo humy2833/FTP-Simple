@@ -1034,7 +1034,7 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
               return;
             }
             var newFilePath = pathUtil.join(localPath, value.name);
-            console.log(newFilePath);
+            //console.log(newFilePath);
             if(value.type === 'd')
             {
               fileUtil.mkdir(newFilePath, function(){

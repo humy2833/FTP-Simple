@@ -130,7 +130,7 @@
   },
   "dependencies": {
     "chokidar": "^1.6.1",
-    "easy-ftp": "^0.3.23",
+    "easy-ftp": "^0.3.24",
     "easy-loop": "^1.4.4",
     "filesize": "^3.3.0",
     "fs-extra": "^0.30.0"
