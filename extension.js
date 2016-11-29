@@ -2,6 +2,7 @@ var vscode = require('vscode');
 var fs = require('fs');
 var fse = require('fs-extra');
 var loop = require('easy-loop');
+var minimatch = require('minimatch');
 var filesize = require('filesize');
 var pathUtil = require('./lib/path-util');
 var fileUtil = require('./lib/file-util');
@@ -1048,7 +1049,7 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
     {
       cb();
       return;
-    }
+    }    
     ftp.ls(remotePath, function(err, remoteFileList){
       if(err && cb || remoteRefreshStopFlag) cb();
       else
@@ -1069,31 +1070,39 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
               next();
               return;
             }
-            var newFilePath = pathUtil.join(localPath, value.name);
-            //console.log(newFilePath);
-            if(value.type === 'd')
+            var remoteRealPath = pathUtil.join(remotePath, value.name);
+            if(isIgnoreFile(ftpConfig, remoteRealPath))
             {
-              fileUtil.mkdir(newFilePath, function(){
-                // if(notRecursive === true || depth === 0) next();
-                // else emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
-              });
-              if(notRecursive !== true && depth !== 0)
-              {
-                emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
-              }
-              else next();
+              next();
             }
             else
             {
-              fileUtil.stat(newFilePath, function(stat){
-                if(!stat)
+              var newFilePath = pathUtil.join(localPath, value.name);
+              //console.log(newFilePath);
+              if(value.type === 'd')
+              {
+                fileUtil.mkdir(newFilePath, function(){
+                  // if(notRecursive === true || depth === 0) next();
+                  // else emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
+                });
+                if(notRecursive !== true && depth !== 0)
                 {
-                  output("Remote info download : " + newFilePath); 
-                  fileUtil.writeFile(newFilePath, "");
+                  emptyDownload(remoteRealPath, newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
                 }
-              });
-              next();
-            }            
+                else next();
+              }
+              else
+              {
+                fileUtil.stat(newFilePath, function(stat){
+                  if(!stat)
+                  {
+                    output("Remote info download : " + newFilePath); 
+                    fileUtil.writeFile(newFilePath, "");
+                  }
+                });
+                next();
+              }
+            }           
           }, function(err){
             if(!remoteRefreshStopFlag) deleteDiff(localFileList, remoteFileList);
             if(cb) cb(err);
@@ -1457,6 +1466,11 @@ function getProjectPathInConfig(){
             if(p) result.push({config:o, path:p});
           }         
         }
+        // else if(typeof v === 'object')
+        // {
+        //   var p = same(k, v.path);
+        //   if(p) result.push({config:o, path:p, ignore:v.ignore});
+        // }        
         else
         {
           var p = same(k, v);
@@ -1478,4 +1492,20 @@ function getProjectPathInConfig(){
     return null;
   }
   return result.length ? result : null;
+}
+function isIgnoreFile(ftpConfig, remotePath){
+  var result = false;
+  if(ftpConfig.ignore && ftpConfig.ignore instanceof Array)
+  {
+    for(var v of ftpConfig.ignore)
+    {
+      var ignorePattern = pathUtil.join(ftpConfig.path, v);
+      if(minimatch(remotePath, ignorePattern))
+      {
+        result = true;
+        break;
+      }
+    }
+  }
+  return result;
 }

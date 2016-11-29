@@ -6,7 +6,7 @@
 - **Create** a **directory** on the remote server directly.
 - **Delete** **directory**(recursive) and **files** directly from the server.
 - **Compare** a local file server file.
-- ** Remote directory open to workspace** (Beta version)
+- **Remote directory open to workspace** (Beta version)
 
 ##Available commands
 * config - Set the ftp connection information.
@@ -43,6 +43,7 @@ See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 * **backup** - _string_	- (option) The local path you want to back up before file saving on the server.
 * **confirm** - _boolean_	- (option) Only save option. When you save the file, ask if you want to overwrite the file if it already exists.. **Default:** true
 * **project** - _object_	- (option) Only save option. Pre-specify local workspace path and server root path to save directly without selecting a path. Overwrite unconditionally.
+* **ignore** - _array_	- (option) Only 'Remote directory open to workspace' option. Path to be ignore. Use [glog pattern](https://en.wikipedia.org/wiki/Glob_(programming)). (**Caution** : server path (ex:`/home`) + ignore pattern (ex:`/**/node_modules`) => `/home/**/node_modules`)
 
 
 
@@ -75,10 +76,11 @@ Example
 		"type": "sftp",
 		"username": "id",
 		"password": "pw",
-		"path" : "/",
+		"path" : "/home",
 		"confirm" : false,
 		"backup" : "C:/backup",
-		"project" :  {"c:/projects/project1":"/home/user/project"}
+		"project" :  {"c:/projects/project1":"/home/user/project"},
+		"ignore" : ["/**/node_modules", "/**/*.class"]
 	},
 	....
 ]
