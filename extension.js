@@ -204,34 +204,66 @@ function activate(context) {
                 selectFirst(pathUtil.getParentPath(remotePath));
               }
             })
-          }       
+          }
         });
       }
     });
   }));
 
   subscriptions.push(vscode.commands.registerCommand('ftp.diff', function (item) {
-      var localFilePath = vsUtil.getActiveFilePathAndMsg(item, "Please select a file to compare");
-      if(!localFilePath) return;
-      if(fileUtil.isDirSync(localFilePath))
-      {
-        vsUtil.msg("Select a file. The directory is impossible.");
-        return;
-      }
-      getSelectedFTPConfig(function(ftpConfig)
-      {
-        var ftp = createFTP(ftpConfig, function(){
-          getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file want to compare", function selectItem(item, parentPath, filePath){
-            download(ftp, ftpConfig, filePath, function(err, path){
-              if(!err)
+    var localFilePath = vsUtil.getActiveFilePathAndMsg(item, "Please select a file to compare");
+    if(!localFilePath) return;
+    if(fileUtil.isDirSync(localFilePath))
+    {
+      vsUtil.msg("Select a file. The directory is impossible.");
+      return;
+    }
+    var baseProjects = getProjectPathInConfig();
+    if(baseProjects)
+    {
+      getSelectedProjectFTPConfig(baseProjects, 'DIFF', function(item){      
+        if(item === 'SERVER ALL')
+        {
+          getSelectedFTPConfig(diff);
+        }
+        else if(typeof item === 'object')
+        {
+          var workspacePath = vsUtil.getWorkspacePath();
+          var ftp = createFTP(item, function(){
+            var remotePath = pathUtil.join(item.remote, pathUtil.getRelativePath(workspacePath, localFilePath));
+            ftp.exist(remotePath, function(result){
+              if(result)
               {
-                vsUtil.diff(localFilePath, path);
+                downloadAndDiff(ftp, item, remotePath);              
               }
+              else vsUtil.error("The file does not exist on the server.");
             });
           });
-        });
-        
+        }
       });
+    } 
+    else
+    {
+      getSelectedFTPConfig(diff);
+    }
+    
+
+    function diff(ftpConfig)
+    {
+      var ftp = createFTP(ftpConfig, function(){
+        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file want to compare", function selectItem(item, parentPath, filePath){
+          downloadAndDiff(ftp, ftpConfig, filePath);
+        });
+      });
+    }
+    function downloadAndDiff(ftp, ftpConfig, filePath){
+      download(ftp, ftpConfig, filePath, function(err, path){
+        if(!err)
+        {
+          vsUtil.diff(localFilePath, path);
+        }
+      });
+    }
   }));
     
   subscriptions.push(vscode.commands.registerCommand('ftp.delete', function (item) {
@@ -239,6 +271,10 @@ function activate(context) {
     {
       var localFilePath = vsUtil.getActiveFilePath(item);
       if(deleteToRemoteTempPath(localFilePath)) return;
+    }
+    else if(item === null)  //워크스페이스 선택
+    {
+
     }
     getSelectedFTPConfig(function(ftpConfig)
     {
@@ -372,10 +408,10 @@ function activate(context) {
     function getSelectProject(){
       if(baseProjects)
       {
-        getSelectedProjectFTPConfig(baseProjects, function(item){
+        getSelectedProjectFTPConfig(baseProjects, 'SAVE', function(item){
           if(item === 'SERVER ALL')
           {
-            getSelectedFTPConfig(saveMain)
+            getSelectedFTPConfig(saveMain);
           }
           else if(item === 'SAVE ALL')
           {
@@ -765,7 +801,7 @@ function getFTPConfig(ftpsConfig, name){
   }  
   return ftpConfig;
 }
-function getSelectedProjectFTPConfig(projects, cb){
+function getSelectedProjectFTPConfig(projects, type, cb){
   const ALL = '= SHOW ALL SERVER LIST =';
   const SAVE_ALL = '= SAVE ALL PROJECT =';
   var list = [];
@@ -773,9 +809,9 @@ function getSelectedProjectFTPConfig(projects, cb){
   {
     list.push({label:projects[i].config.name, description:projects[i].path.remote, idx:i});
   }  
-  list.push({label:SAVE_ALL, description:'Unconditionally overwrite'});
+  if(type === 'SAVE') list.push({label:SAVE_ALL, description:'Unconditionally overwrite'});
   list.push({label:ALL});
-  vsUtil.pick(list, 'Select the project to save').then(function(item){
+  vsUtil.pick(list, 'Select the project to ' + type.toLowerCase()).then(function(item){
     if(item)
     {
       if(item.label == SAVE_ALL)
