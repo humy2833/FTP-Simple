@@ -457,7 +457,7 @@ function activate(context) {
         if(filePath)
         {
           if(ftpConfig.confirm === false) upload(ftp, ftpConfig, localFilePath, path);
-          else confirmExist(ftp, path, localFilePath, filePath);
+          else confirmExist(ftp, ftpConfig, path, localFilePath, filePath);
         }
         else if(isIncludeDir)
         {
@@ -489,7 +489,7 @@ function activate(context) {
             else
             {
               exist(ftp, path, fileName, function(result){
-                if(result) confirmExist(ftp, path, localFilePath, pathUtil.join(path, fileName));
+                if(result) confirmExist(ftp, ftpConfig, path, localFilePath, pathUtil.join(path, fileName));
                 else
                 {
                   upload(ftp, ftpConfig, localFilePath, pathUtil.join(path, fileName));
@@ -543,7 +543,7 @@ function activate(context) {
         });
       }
     }
-    function confirmExist(ftp, path, localPath, remotePath){
+    function confirmExist(ftp, ftpConfig, path, localPath, remotePath){
       vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
         if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
         else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:path}], selectItem);
