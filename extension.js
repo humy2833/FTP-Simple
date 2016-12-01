@@ -17,6 +17,7 @@ var ftps = {};
 var remoteRefreshFlag = false;
 var remoteRefreshStopFlag = false;
 var watcher = null;
+var waitList = [];
 const CONFIG_NAME = "ftp-simple.json";
 const CONFIG_FTP_TEMP = "/ftp-simple/remote-temp";
 const CONFIG_FTP_WORKSPACE_TEMP = "/ftp-simple/remote-workspace-temp";
@@ -410,7 +411,14 @@ function activate(context) {
       if(baseProjects)
       {
         getSelectedProjectFTPConfig(baseProjects, 'SAVE', function(item){
-          if(item === 'SERVER ALL')
+          if(typeof item === 'object')
+          {
+            isForceUpload = true;
+            var ftp = createFTP(item, function(){
+              upload(ftp, item, localFilePath, pathUtil.join(item.remote, pathUtil.getRelativePath(workspacePath, localFilePath)));
+            });
+          }
+          else if(item === 'SERVER ALL')
           {
             getSelectedFTPConfig(saveMain);
           }
@@ -423,13 +431,40 @@ function activate(context) {
               });
             });
           }
-          else if(typeof item === 'object')
+          else if(item.indexOf('WAIT') === 0)
           {
-            isForceUpload = true;
-            var ftp = createFTP(item, function(){
-              upload(ftp, item, localFilePath, pathUtil.join(item.remote, pathUtil.getRelativePath(workspacePath, localFilePath)));
+            if(item.indexOf('ALL') === -1)
+            {
+              addWaitList(localFilePath, isDir);
+            }
+            pickWaitList(function(list){
+              if(list && list.length)
+              {
+                getSelectedProjectFTPConfig(baseProjects, 'SAVE_WAIT_LIST', function(item){
+                  if(typeof item === 'object')
+                  {
+                    var ftp = createFTP(item, function(){
+                      loop(list, function(i, value, next){
+                        upload(ftp, item, value.path, pathUtil.join(item.remote, value.label), next);
+                      });
+                    });
+                  }
+                  else if(item === 'SAVE ALL')
+                  {
+                    loop(baseProjects, function(i, value, next){
+                      var ftp = createFTP(value.config, function(){
+                        loop(list, function(j, v, next){
+                          upload(ftp, value.config, v.path, pathUtil.join(value.path.remote, v.label), next);
+                        }, function(err){
+                          next(err);
+                        });
+                      });
+                    });
+                  }
+                });
+              }
             });
-          }
+          }          
         });
       }
       else 
@@ -456,7 +491,15 @@ function activate(context) {
       function selectItem(item, path, filePath){
         if(filePath)
         {
-          if(ftpConfig.confirm === false) upload(ftp, ftpConfig, localFilePath, path);
+          if(ftpConfig.confirm === false) 
+          {
+            upload(ftp, ftpConfig, localFilePath, path, function(err){
+              if(!err)
+              {
+                hideAndOpen(ftp, ftpConfig, path);
+              }
+            });
+          }
           else confirmExist(ftp, ftpConfig, path, localFilePath, filePath);
         }
         else if(isIncludeDir)
@@ -482,17 +525,28 @@ function activate(context) {
           });
 
           function existProc(fileName){
+            var rPath = pathUtil.join(path, fileName);
             if(ftpConfig.confirm === false)
             {
-              upload(ftp, ftpConfig, localFilePath, pathUtil.join(path, fileName));
+              upload(ftp, ftpConfig, localFilePath, rPath, function(err){
+                if(!err)
+                {
+                  hideAndOpen(ftp, ftpConfig, rPath);
+                }
+              });
             }
             else
             {
               exist(ftp, path, fileName, function(result){
-                if(result) confirmExist(ftp, ftpConfig, path, localFilePath, pathUtil.join(path, fileName));
+                if(result) confirmExist(ftp, ftpConfig, path, localFilePath, rPath);
                 else
                 {
-                  upload(ftp, ftpConfig, localFilePath, pathUtil.join(path, fileName));
+                  upload(ftp, ftpConfig, localFilePath, rPath, function(err){
+                    if(!err)
+                    {
+                      hideAndOpen(ftp, ftpConfig, rPath);
+                    }
+                  });
                 }
               });
             }
@@ -500,10 +554,23 @@ function activate(context) {
         }
         else
         {
-          upload(ftp, ftpConfig, localFilePath, path);
+          upload(ftp, ftpConfig, localFilePath, path, function(err){
+            if(!err)
+            {
+              hideAndOpen(ftp, ftpConfig, path);
+            }
+          });
         }
       }
     }
+    function hideAndOpen(ftp, ftpConfig, remotePath){
+      if(!isForceUpload)
+      {
+        vsUtil.hide();
+        downloadOpen(ftp, ftpConfig, remotePath);
+      }
+    }
+    /*
     function upload(ftp, ftpConfig, localPath, remotePath, cb){
       var backupList = [];
       if(isDir)
@@ -543,6 +610,7 @@ function activate(context) {
         });
       }
     }
+    */
     function confirmExist(ftp, ftpConfig, path, localPath, remotePath){
       vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
         if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
@@ -805,19 +873,42 @@ function getFTPConfig(ftpsConfig, name){
 function getSelectedProjectFTPConfig(projects, type, cb){
   const ALL = '= SHOW ALL SERVER LIST =';
   const SAVE_ALL = '= SAVE ALL PROJECT =';
+  const WAIT = '= WAIT =';
+  const WAIT_ALL = '= SHOW ALL WAIT LIST =';
   var list = [];
   for(let i=0; i<projects.length; i++)
   {
     list.push({label:projects[i].config.name, description:projects[i].path.remote, idx:i});
   }  
-  if(type === 'SAVE') list.push({label:SAVE_ALL, description:'Unconditionally overwrite'});
-  list.push({label:ALL});
+  if(type === 'SAVE_WAIT_LIST')
+  {
+    list.push({label:SAVE_ALL, description:'Unconditionally overwrite'});
+  }
+  else
+  {
+    if(type === 'SAVE') 
+    {
+      list.push({label:WAIT, description:'Save the file path to the waiting list'});
+      if(waitList.length) list.push({label:WAIT_ALL, description:'Shows all waiting list'});
+      list.push({label:SAVE_ALL, description:'Unconditionally overwrite'});
+    }
+    list.push({label:ALL});
+  }
+ 
   vsUtil.pick(list, 'Select the project to ' + type.toLowerCase()).then(function(item){
     if(item)
     {
       if(item.label == SAVE_ALL)
       {
         if(cb) cb('SAVE ALL');
+      }
+      else if(item.label == WAIT)
+      {
+        if(cb) cb('WAIT');
+      }
+      else if(item.label == WAIT_ALL)
+      {
+        if(cb) cb('WAIT ALL');
       }
       else if(item.idx != undefined)
       {
@@ -830,7 +921,6 @@ function getSelectedProjectFTPConfig(projects, type, cb){
         if(cb) cb('SERVER ALL');
       }
     }
-    else if(cb) cb();
   });
 }
 function getSelectedFTPConfig(cb){
@@ -979,6 +1069,44 @@ function getFTPConfigFromRemoteTempPath(remoteTempPath){
   }
   return {config : ftpConfig, path : remotePath};
 }
+function upload(ftp, ftpConfig, localPath, remotePath, cb){
+  var backupList = [];
+  var isDir = fileUtil.isDirSync(localPath);
+  if(isDir)
+  {            
+    var wsLen = vsUtil.getWorkspacePath().length;
+    var folder = localPath.substring(wsLen);    
+    wsLen += folder.length;        
+    fileUtil.ls(localPath, function(err, list){
+      list.forEach(function(v,i,arr){
+        arr[i] = pathUtil.join(remotePath, v.path.substring(wsLen));
+      });
+      backupList = list;
+      localPath = localPath + "/**";
+      main();
+    }, true);
+  }
+  else
+  {
+    backupList.push(remotePath);
+    //if(ftpConfig.confirm === false) isForceUpload = true;
+    main();
+  }
+  function main(){
+    backup(ftp, ftpConfig, backupList, function(err){
+      ftp.upload(localPath, remotePath, function(err){
+        // if(!err && !isForceUpload)
+        // {
+        //   vsUtil.hide();
+        //   downloadOpen(ftp, ftpConfig, remotePath);
+        // }
+        if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
+        if(err) output("upload fail : " + remotePath + " => " + err.message);
+        if(cb) cb(err);
+      });
+    });
+  }
+}
 function download(ftp, ftpConfig, remotePath, cb){
   var localPath = pathUtil.join(REMOTE_TEMP_PATH, makeTempName(ftpConfig), remotePath);
   ftp.download(remotePath, localPath, function(err){
@@ -1064,7 +1192,7 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
         //   remoteFileList = remoteFileList.concat(remoteFileList.splice(last, 1));
         // }
         fileUtil.ls(localPath, function(err, localFileList){
-          loop(remoteFileList, 10, function(i, value, next){
+          loop(remoteFileList, 5, function(i, value, next){
             if(remoteRefreshStopFlag)
             {
               next();
@@ -1508,4 +1636,72 @@ function isIgnoreFile(ftpConfig, remotePath){
     }
   }
   return result;
+}
+function addWaitList(path, isDir){
+  var relativePath = pathUtil.getRelativePath(vsUtil.getWorkspacePath(), path);  
+  var result = true;
+  for(var o of waitList)
+  {
+    if(o.path === path || o.isDir && path.indexOf(o.path + "/") === 0)
+    {
+      result = false;
+      break;
+    }
+  }
+  if(result)
+  {
+    waitList.push({path:path, label:relativePath, isDir:isDir, description:'If selected, removed from the list'});
+    waitList.sort(function(a, b){
+      return a.path > b.path;
+    });
+    output("Add Wait path : " + relativePath);
+  }
+}
+function deleteWaitList(path){
+  if(path)
+  {
+    var relativePath = pathUtil.getRelativePath(vsUtil.getWorkspacePath(), path);
+    for(var i=0; i<waitList.length; i++)
+    {
+      var o = waitList[i];
+      if(o.path === path)
+      {
+        waitList.splice(i, 1);
+        output("Delete wait path : " + relativePath);
+        break;
+      }
+    }
+  }
+  else
+  {
+    waitList.length = 0;
+    output("Delete all wait path.");
+  }
+}
+function pickWaitList(cb){
+  const SAVE_ALL = {label:"= SAVE ALL =", description:'from waiting list'};
+  const DELETE_ALL = {label:"= DELETE ALL =", description:'from waiting list'};
+  const SAVE_DELETE = {label:"= SAVE ALL & DELETE ALL =", description:'from waiting list'};
+  vsUtil.pick(waitList.concat([SAVE_ALL, DELETE_ALL, SAVE_DELETE]), 'Select the path or action', function(item){
+    if(item.path)
+    {
+      deleteWaitList(item.path);
+      pickWaitList(cb);
+    }
+    else if(item.label === DELETE_ALL.label)
+    {
+      deleteWaitList();
+      if(cb)cb();
+    }
+    else if(item.label === SAVE_ALL.label || item.label === SAVE_DELETE.label)
+    {      
+      var newList = waitList;
+      if(item.label === SAVE_DELETE.label)
+      {
+        newList = waitList.concat([]);
+        deleteWaitList();
+      }
+      if(cb)cb(newList);
+    }
+  });
 }
