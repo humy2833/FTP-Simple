@@ -17,7 +17,7 @@
 * delete - Delete the file or directory directly from ftp server.
 * diff - Compare a local file server file.
 * Remote directory open to workspace - (Beta version) Open the direcotry directly on workspace from ftp server. Similar to remote synchronization.
-(**Caution** : Deleting a local file also deletes the remote file. And deleting a directory is only possible using 'Delete' in the context menu.)  
+(**Caution** : Remote delete a files is only possible using 'Delete' in the context menu)
 	
                                      
 																		 

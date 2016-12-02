@@ -425,9 +425,10 @@ function activate(context) {
           else if(item === 'SAVE ALL')
           {
             isForceUpload = true;
+            var backupName = commonUtil.getNow().replace(/[^0-9]/g, '');
             loop(baseProjects, function(i, value, next){
               var ftp = createFTP(value.config, function(){
-                upload(ftp, value.config, localFilePath, pathUtil.join(value.path.remote, pathUtil.getRelativePath(workspacePath, localFilePath)), next);
+                upload(ftp, value.config, localFilePath, pathUtil.join(value.path.remote, pathUtil.getRelativePath(workspacePath, localFilePath)), backupName, next);
               });
             });
           }
@@ -437,33 +438,37 @@ function activate(context) {
             {
               addWaitList(localFilePath, isDir);
             }
-            pickWaitList(function(list){
-              if(list && list.length)
-              {
-                getSelectedProjectFTPConfig(baseProjects, 'SAVE_WAIT_LIST', function(item){
-                  if(typeof item === 'object')
-                  {
-                    var ftp = createFTP(item, function(){
-                      loop(list, function(i, value, next){
-                        upload(ftp, item, value.path, pathUtil.join(item.remote, value.label), next);
-                      });
-                    });
-                  }
-                  else if(item === 'SAVE ALL')
-                  {
-                    loop(baseProjects, function(i, value, next){
-                      var ftp = createFTP(value.config, function(){
-                        loop(list, function(j, v, next){
-                          upload(ftp, value.config, v.path, pathUtil.join(value.path.remote, v.label), next);
-                        }, function(err){
-                          next(err);
+            else
+            {
+              pickWaitList(function(list){
+                if(list && list.length)
+                {
+                  getSelectedProjectFTPConfig(baseProjects, 'SAVE_WAIT_LIST', function(item){
+                    var backupName = commonUtil.getNow().replace(/[^0-9]/g, '');
+                    if(typeof item === 'object')
+                    {
+                      var ftp = createFTP(item, function(){
+                        loop(list, function(i, value, next){
+                          upload(ftp, item, value.path, pathUtil.join(item.remote, value.label), backupName, next);
                         });
                       });
-                    });
-                  }
-                });
-              }
-            });
+                    }
+                    else if(item === 'SAVE ALL')
+                    {
+                      loop(baseProjects, function(i, value, next){
+                        var ftp = createFTP(value.config, function(){
+                          loop(list, function(j, v, next){
+                            upload(ftp, value.config, v.path, pathUtil.join(value.path.remote, v.label), backupName, next);
+                          }, function(err){
+                            next(err);
+                          });
+                        });
+                      });
+                    }
+                  });
+                }
+              });
+            }
           }          
         });
       }
@@ -1069,7 +1074,12 @@ function getFTPConfigFromRemoteTempPath(remoteTempPath){
   }
   return {config : ftpConfig, path : remotePath};
 }
-function upload(ftp, ftpConfig, localPath, remotePath, cb){
+function upload(ftp, ftpConfig, localPath, remotePath, backupName, cb){
+  if(typeof backupName === 'function')
+  {
+    cb = backupName;
+    backupName = undefined;
+  }
   var backupList = [];
   var isDir = fileUtil.isDirSync(localPath);
   if(isDir)
@@ -1093,7 +1103,7 @@ function upload(ftp, ftpConfig, localPath, remotePath, cb){
     main();
   }
   function main(){
-    backup(ftp, ftpConfig, backupList, function(err){
+    backup(ftp, ftpConfig, backupList, backupName, function(err){
       ftp.upload(localPath, remotePath, function(err){
         // if(!err && !isForceUpload)
         // {
@@ -1192,7 +1202,7 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
         //   remoteFileList = remoteFileList.concat(remoteFileList.splice(last, 1));
         // }
         fileUtil.ls(localPath, function(err, localFileList){
-          loop(remoteFileList, 5, function(i, value, next){
+          loop(remoteFileList, 1, function(i, value, next){
             if(remoteRefreshStopFlag)
             {
               next();
@@ -1232,7 +1242,7 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
               }
             }           
           }, function(err){
-            if(!remoteRefreshStopFlag) deleteDiff(localFileList, remoteFileList);
+            //if(!remoteRefreshStopFlag) deleteDiff(localFileList, remoteFileList);
             if(cb) cb(err);
           });
         }); 
@@ -1301,7 +1311,12 @@ function setRefreshRemoteTimer(isNow){
     });
   }, isNow ? 0 : 1000 * 60 * 3);
 }
-function backup(ftp, ftpConfig, path, cb){
+function backup(ftp, ftpConfig, path, backupName, cb){
+  if(typeof backupName === 'function')
+  {
+    cb = backupName;
+    backupName = undefined;
+  }
   if(ftpConfig.backup)
   {
     fileUtil.mkdir(ftpConfig.backup, function(err){
@@ -1312,7 +1327,7 @@ function backup(ftp, ftpConfig, path, cb){
       }
       else
       {
-        var now = commonUtil.getNow().replace(/[^0-9]/g, '');
+        var now = backupName ? backupName : commonUtil.getNow().replace(/[^0-9]/g, '');
         var ymd = now.substring(0, 8);
         if(typeof path === 'string')
         {
@@ -1537,7 +1552,7 @@ function startWatch(){
       }
     });
   });
-  
+  /*
   watcher.on('unlink', (path) => {
     path = pathUtil.normalize(path);
     //fileUtil.exist(pathUtil.getParentPath(path), function(result){
@@ -1549,7 +1564,7 @@ function startWatch(){
     //  }
     //});
   });
-  
+  */
 }
 function stopWatch(){
   console.log("stopWatch");
@@ -1682,7 +1697,7 @@ function pickWaitList(cb){
   const SAVE_ALL = {label:"= SAVE ALL =", description:'from waiting list'};
   const DELETE_ALL = {label:"= DELETE ALL =", description:'from waiting list'};
   const SAVE_DELETE = {label:"= SAVE ALL & DELETE ALL =", description:'from waiting list'};
-  vsUtil.pick(waitList.concat([SAVE_ALL, DELETE_ALL, SAVE_DELETE]), 'Select the path or action', function(item){
+  vsUtil.pick(waitList.concat([SAVE_ALL, DELETE_ALL, SAVE_DELETE]), 'Select the path or action. Total : ' + waitList.length, function(item){
     if(item.path)
     {
       deleteWaitList(item.path);
