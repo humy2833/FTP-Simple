@@ -428,7 +428,24 @@ function activate(context) {
             var backupName = commonUtil.getNow().replace(/[^0-9]/g, '');
             loop(baseProjects, function(i, value, next){
               var ftp = createFTP(value.config, function(){
-                upload(ftp, value.config, localFilePath, pathUtil.join(value.path.remote, pathUtil.getRelativePath(workspacePath, localFilePath)), backupName, next);
+                var remotePath = pathUtil.join(value.path.remote, pathUtil.getRelativePath(workspacePath, localFilePath));
+                if(value.config.backup)
+                {
+                  getBackupList(localFilePath, remotePath, function(backupList, realLocalPath){
+                    backup(ftp, value.config, backupList, backupName, function(err){
+                      var tempBackup = value.config.backup;
+                      delete value.config.backup;
+                      upload(ftp, value.config, localFilePath, remotePath, backupName, function(){
+                        value.config.backup = tempBackup;
+                        next();
+                      });
+                    });
+                  });
+                }
+                else
+                {
+                  upload(ftp, value.config, localFilePath, remotePath, backupName, next);
+                }
               });
             });
           }
@@ -448,20 +465,60 @@ function activate(context) {
                     if(typeof item === 'object')
                     {
                       var ftp = createFTP(item, function(){
-                        loop(list, function(i, value, next){
-                          upload(ftp, item, value.path, pathUtil.join(item.remote, value.label), backupName, next);
-                        });
+                        if(item.backup)
+                        {
+                          loop(list, function(i, value, next){
+                            getBackupList(value.path, pathUtil.join(item.remote, value.label), function(backupList, realLocalPath){
+                              backup(ftp, item, backupList, backupName, function(err){
+                                next();
+                              });
+                            });
+                          }, function(err){
+                            delete item.backup;
+                            loop(list, function(i, value, next){
+                              upload(ftp, item, value.path, pathUtil.join(item.remote, value.label), backupName, next);
+                            });
+                          });
+                        }
+                        else
+                        {
+                          loop(list, function(i, value, next){
+                            upload(ftp, item, value.path, pathUtil.join(item.remote, value.label), backupName, next);
+                          });
+                        }
                       });
                     }
                     else if(item === 'SAVE ALL')
                     {
                       loop(baseProjects, function(i, value, next){
                         var ftp = createFTP(value.config, function(){
-                          loop(list, function(j, v, next){
-                            upload(ftp, value.config, v.path, pathUtil.join(value.path.remote, v.label), backupName, next);
-                          }, function(err){
-                            next(err);
-                          });
+                          if(value.config.backup)
+                          {
+                            loop(list, function(j, v, next){
+                              getBackupList(v.path, pathUtil.join(value.path.remote, v.label), function(backupList, realLocalPath){
+                                backup(ftp, value.config, backupList, backupName, function(err){
+                                  next();
+                                });
+                              });  
+                            }, function(err){
+                              var tempBackup = value.config.backup;
+                              delete value.config.backup;
+                              loop(list, function(j, v, next){
+                                upload(ftp, value.config, v.path, pathUtil.join(value.path.remote, v.label), backupName, next);
+                              }, function(err){
+                                value.config.backup = tempBackup;
+                                next();
+                              });
+                            });
+                          }
+                          else
+                          {
+                            loop(list, function(j, v, next){
+                              upload(ftp, value.config, v.path, pathUtil.join(value.path.remote, v.label), backupName, next);
+                            }, function(err){
+                              next();
+                            });
+                          }
                         });
                       });
                     }
@@ -574,55 +631,13 @@ function activate(context) {
         vsUtil.hide();
         downloadOpen(ftp, ftpConfig, remotePath);
       }
-    }
-    /*
-    function upload(ftp, ftpConfig, localPath, remotePath, cb){
-      var backupList = [];
-      if(isDir)
-      {            
-        var wsLen = vsUtil.getWorkspacePath().length;
-        var folder = localPath.substring(wsLen);    
-        wsLen += folder.length;        
-        fileUtil.ls(localPath, function(err, list){
-          list.forEach(function(v,i,arr){
-            arr[i] = pathUtil.join(remotePath, v.path.substring(wsLen));
-          });
-          //console.log(localPath.substring(wsLen), remotePath);
-          backupList = list;
-          localPath = localPath + "/**";
-          main();
-        }, true);
-      }
-      else
-      {
-        backupList.push(remotePath);
-        if(!isDir && ftpConfig.confirm === false) isForceUpload = true;
-        main();
-      }
-      function main(){
-        //console.log(localPath, remotePath);return;
-        backup(ftp, ftpConfig, backupList, function(err){
-          ftp.upload(localPath, remotePath, function(err){
-            if(!err && !isForceUpload)
-            {
-              vsUtil.hide();
-              downloadOpen(ftp, ftpConfig, remotePath);
-            }
-            if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
-            if(err) output("upload fail : " + remotePath + " => " + err.message);
-            if(cb) cb();
-          });
-        });
-      }
-    }
-    */
+    }    
     function confirmExist(ftp, ftpConfig, path, localPath, remotePath){
       vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+remotePath+"'. Overwrite?", "Back", "OK").then(function(btn){
         if(btn == "OK") upload(ftp, ftpConfig, localPath, remotePath);
         else if(btn == "Back") getSelectedFTPFile(ftp, ftpConfig, path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:path}], selectItem);
       });
-    }
-    
+    }    
   }));
 
   for(var i=0; i<subscriptions.length; i++) context.subscriptions.push(subscriptions[i]);
@@ -1074,46 +1089,59 @@ function getFTPConfigFromRemoteTempPath(remoteTempPath){
   }
   return {config : ftpConfig, path : remotePath};
 }
+function getBackupList(localPath, remotePath, cb){  
+  fileUtil.isDir(localPath, function(err, isDir){
+    if(isDir)
+    {
+      var wsLen = vsUtil.getWorkspacePath().length;
+      var folder = localPath.substring(wsLen);    
+      wsLen += folder.length;        
+      fileUtil.ls(localPath, function(err, list){
+        list.forEach(function(v,i,arr){
+          arr[i] = pathUtil.join(remotePath, v.path.substring(wsLen));
+        });
+        cb(list, localPath + "/**");
+      }, true);
+    }
+    else
+    {
+      cb([remotePath], localPath);
+    }
+  });
+}
 function upload(ftp, ftpConfig, localPath, remotePath, backupName, cb){
   if(typeof backupName === 'function')
   {
     cb = backupName;
     backupName = undefined;
   }
-  var backupList = [];
-  var isDir = fileUtil.isDirSync(localPath);
-  if(isDir)
-  {            
-    var wsLen = vsUtil.getWorkspacePath().length;
-    var folder = localPath.substring(wsLen);    
-    wsLen += folder.length;        
-    fileUtil.ls(localPath, function(err, list){
-      list.forEach(function(v,i,arr){
-        arr[i] = pathUtil.join(remotePath, v.path.substring(wsLen));
+  if(ftpConfig.backup)
+  {
+    getBackupList(localPath, remotePath, function(backupList, realLocalPath){
+      var isDir = localPath != realLocalPath;
+      backup(ftp, ftpConfig, backupList, backupName, function(err){
+        localPath = realLocalPath;
+        main(isDir);
       });
-      backupList = list;
-      localPath = localPath + "/**";
-      main();
-    }, true);
+    });
   }
   else
   {
-    backupList.push(remotePath);
-    //if(ftpConfig.confirm === false) isForceUpload = true;
-    main();
+    fileUtil.isDir(localPath, function(err, isDir){
+      if(isDir) localPath = localPath + "/**";
+      main(isDir);
+    });
   }
-  function main(){
-    backup(ftp, ftpConfig, backupList, backupName, function(err){
-      ftp.upload(localPath, remotePath, function(err){
-        // if(!err && !isForceUpload)
-        // {
-        //   vsUtil.hide();
-        //   downloadOpen(ftp, ftpConfig, remotePath);
-        // }
-        if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
-        if(err) output("upload fail : " + remotePath + " => " + err.message);
-        if(cb) cb(err);
-      });
+  function main(isDir){
+    ftp.upload(localPath, remotePath, function(err){
+      // if(!err && !isForceUpload)
+      // {
+      //   vsUtil.hide();
+      //   downloadOpen(ftp, ftpConfig, remotePath);
+      // }
+      if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
+      if(err) output("upload fail : " + remotePath + " => " + err.message);
+      if(cb) cb(err);
     });
   }
 }
@@ -1666,6 +1694,16 @@ function addWaitList(path, isDir){
   if(result)
   {
     waitList.push({path:path, label:relativePath, isDir:isDir, description:'If selected, removed from the list'});
+    if(isDir)
+    {
+      for(var i=waitList.length-1; i>=0; i--)
+      {
+        if(waitList[i].path.indexOf(path + "/") === 0)
+        {
+          waitList.splice(i, 1);
+        }
+      }
+    }
     waitList.sort(function(a, b){
       return a.path > b.path;
     });
