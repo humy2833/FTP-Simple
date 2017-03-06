@@ -45,14 +45,11 @@ function activate(context) {
       newFileWhitelist.splice(newFileWhitelist.indexOf(pathUtil.normalize(event.fsPath)), 1);
       return;
     }
-    output(event.fsPath);
-    output(newFileWhitelist);
     newFiles.push(event.fsPath);
   });
   
   vscode.workspace.onDidSaveTextDocument(function(event){
     //console.log("onDidSaveTextDocument : ", event);
-    output("asdf");
     updateToRemoteTempPath(event.fileName);
   });
   vscode.workspace.onDidCloseTextDocument(function(event){
@@ -125,8 +122,6 @@ function activate(context) {
           }
           else  //new file
           {
-            output(newFiles);
-            output("uplooooad");
             newFiles.splice(newFiles.indexOf(event.document.uri.fsPath), 1);
             ftp.upload(remoteTempPath, ftpConfigFromTempDir.path, function (err) {
               if (err) output("upload fail : " + ftpConfigFromTempDir.path + " => " + err.message);
@@ -1159,8 +1154,7 @@ function upload(ftp, ftpConfig, localPath, remotePath, backupName, cb){
       main(isDir);
     });
   }
-  function main(isDir) {
-    output("upload1");
+  function main(isDir){
     ftp.upload(localPath, remotePath, function(err){
       // if(!err && !isForceUpload)
       // {
@@ -1504,8 +1498,7 @@ function updateToRemoteTempPath(remoteTempPath, existCheck, cb){
       function main(){
         remoteRefreshStopFlag = true;
         setTimeout(function(){
-          backup(ftp, ftpConfig.config, ftpConfig.path, function (err) {
-            output("upload2");
+          backup(ftp, ftpConfig.config, ftpConfig.path, function(err){
             ftp.upload(remoteTempPath + (isDir ? "/**" : ""), ftpConfig.path, function(err){
               remoteRefreshStopFlag = false;
               if(err) output("upload fail : " + ftpConfig.path + " => " + err);
