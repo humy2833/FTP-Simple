@@ -40,17 +40,23 @@ function activate(context) {
     //console.log("onDidSaveTextDocument : ", event);
     updateToRemoteTempPath(event.fileName);
   });
-  vscode.workspace.onDidCloseTextDocument(function(event){
+  vscode.workspace.onDidCloseTextDocument(function(event){    
     //파일 닫을때, 파일 형식 바뀔때
+    //console.log("onDidCloseTextDocument 파일 닫을때 : ", event, vsUtil.getActiveFilePathAll());
+    
     var remoteTempPath = pathUtil.normalize(event.fileName);
+    if(!vsUtil.isChangeTextDocument(remoteTempPath)) return;    
+    //console.log("파일 닫기 : ", remoteTempPath);
     var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
     if(isRemoteTempWorkspaceFile(remoteTempPath))
-    {
+    {      
       var stat = fileUtil.statSync(remoteTempPath);
       if(stat && stat.size > 0)
       {
         runAfterCheck(remoteTempPath, function(){
-          fileUtil.writeFile(remoteTempPath, "", function(){});
+          fileUtil.writeFile(remoteTempPath, "", function(){
+            //console.log("파일 삭제 : ", remoteTempPath);
+          });
         });
       }
       // else
@@ -74,25 +80,21 @@ function activate(context) {
       fileUtil.rm(CONFIG_PATH_TEMP);
     }
   });
-  vscode.workspace.onDidChangeConfiguration(function(event){
-    //console.log("onDidChangeConfiguration : ", event);
-  });
-  vscode.workspace.onDidChangeTextDocument(function(event){
-    //소스 수정할때,파일 닫을때, 파일 형식 바뀔때
-    //console.log("onDidChangeTextDocument : ", event);
-  });
+
+  // vscode.workspace.onDidChangeTextDocument(function(event){
+  //   //소스 수정할때,파일 닫을때, 파일 형식 바뀔때
+  //   //console.log("onDidChangeTextDocument : ", event);
+  // });
   
-  vscode.window.onDidChangeTextEditorSelection(function(event){
-    //소스 수정할때,파일 닫을때
-    //console.log("onDidChangeTextEditorSelection : ", event);
-  });
-  vscode.window.onDidChangeTextEditorOptions(function(event){
-    //console.log("onDidChangeTextEditorOptions : ", event);
-  });
+  //vscode.workspace.onDidOpenTextDocument(function(event){
   vscode.window.onDidChangeActiveTextEditor(function(event){
-    if(!event || !event.document)return;
-    var remoteTempPath = pathUtil.normalize(event.document.fileName);
-    // console.log("doc change : ", remoteTempPath);
+    //console.log("onDidOpenTextDocument : ", event);
+    //if(!event || !event.document)return;   
+    if(!(event && event._documentData && event._documentData._uri && event._documentData._uri.fsPath))return; 
+    var remoteTempPath = pathUtil.normalize(event._documentData._uri.fsPath);//(event.fileName);
+    if(!fileUtil.existSync(remoteTempPath)) return;
+    
+    //console.log("파일 열기 : ", remoteTempPath);
     var ftpConfigFromTempDir = getFTPConfigFromRemoteTempPath(remoteTempPath);  
     var stat = fileUtil.statSync(remoteTempPath);
     if(isRemoteTempWorkspaceFile(remoteTempPath) && stat.size === 0)
@@ -101,6 +103,7 @@ function activate(context) {
         if(new Date().getTime() - stat.date.getTime() >= 100)
         {
           ftp.download(ftpConfigFromTempDir.path, remoteTempPath, function(){
+            //console.log("파일 다운로드 : ", remoteTempPath);
             if(watcher)
             {
               setTimeout(function(){
@@ -112,6 +115,7 @@ function activate(context) {
         else  //new file
         {
           ftp.upload(remoteTempPath, ftpConfigFromTempDir.path, function(err){
+            //console.log("파일 업로드 : ", remoteTempPath);
             if(err) output("upload fail : " + ftpConfigFromTempDir.path + " => " + err.message);
           });
         }
@@ -125,8 +129,7 @@ function activate(context) {
     {
       vsUtil.status("");
     }
-  });
-  
+  });  
 
   subscriptions.push(vscode.commands.registerCommand('ftp.config', function () {
     //확장 설정 가져오기(hello.abcd 일때);
@@ -1458,6 +1461,7 @@ function updateToRemoteTempPath(remoteTempPath, existCheck, cb){
         setTimeout(function(){
           backup(ftp, ftpConfig.config, ftpConfig.path, function(err){
             ftp.upload(remoteTempPath + (isDir ? "/**" : ""), ftpConfig.path, function(err){
+              //console.log("save upload : ", remoteTempPath + (isDir ? "/**" : ""));
               remoteRefreshStopFlag = false;
               if(err) output("upload fail : " + ftpConfig.path + " => " + err);
               if(cb) cb(err);
