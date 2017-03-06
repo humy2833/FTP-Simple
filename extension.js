@@ -18,6 +18,9 @@ var remoteRefreshFlag = false;
 var remoteRefreshStopFlag = false;
 var watcher = null;
 var waitList = [];
+var newFiles = [];
+var newFileWhitelist = [];
+var dirPlaceholders = [];
 const CONFIG_NAME = "ftp-simple.json";
 const CONFIG_FTP_TEMP = "/ftp-simple/remote-temp";
 const CONFIG_FTP_WORKSPACE_TEMP = "/ftp-simple/remote-workspace-temp";
@@ -35,9 +38,21 @@ function activate(context) {
   setRefreshRemoteTimer(true);
   //startWatch();
   
+  var fsWatcher = vscode.workspace.createFileSystemWatcher("**/*");
+  fsWatcher.onDidCreate(function (event) {
+    if (find2D(dirPlaceholders, event.fsPath) !== -1) return;
+    if (newFileWhitelist.indexOf(pathUtil.normalize(event.fsPath)) !== -1) {
+      newFileWhitelist.splice(newFileWhitelist.indexOf(pathUtil.normalize(event.fsPath)), 1);
+      return;
+    }
+    output(event.fsPath);
+    output(newFileWhitelist);
+    newFiles.push(event.fsPath);
+  });
   
   vscode.workspace.onDidSaveTextDocument(function(event){
     //console.log("onDidSaveTextDocument : ", event);
+    output("asdf");
     updateToRemoteTempPath(event.fileName);
   });
   vscode.workspace.onDidCloseTextDocument(function(event){
@@ -46,13 +61,13 @@ function activate(context) {
     var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
     if(isRemoteTempWorkspaceFile(remoteTempPath))
     {
-      var stat = fileUtil.statSync(remoteTempPath);
+      /*var stat = fileUtil.statSync(remoteTempPath);
       if(stat && stat.size > 0)
       {
         runAfterCheck(remoteTempPath, function(){
           fileUtil.writeFile(remoteTempPath, "", function(){});
         });
-      }
+      }*/
       // else
       // {
       //   var ftp = createFTP(ftpConfig.config, function(){
@@ -95,25 +110,37 @@ function activate(context) {
     // console.log("doc change : ", remoteTempPath);
     var ftpConfigFromTempDir = getFTPConfigFromRemoteTempPath(remoteTempPath);  
     var stat = fileUtil.statSync(remoteTempPath);
-    if(isRemoteTempWorkspaceFile(remoteTempPath) && stat.size === 0)
+    if(isRemoteTempWorkspaceFile(remoteTempPath) && stat.size <= 3)
     {
-      var ftp = createFTP(ftpConfigFromTempDir.config, function(){
-        if(new Date().getTime() - stat.date.getTime() >= 100)
-        {
-          ftp.download(ftpConfigFromTempDir.path, remoteTempPath, function(){
-            if(watcher)
-            {
-              setTimeout(function(){
-                downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, pathUtil.getParentPath(ftpConfigFromTempDir.path), function(localPath){}, true, true);
-              }, 1000);
-            }
-          });
+      var ftp = createFTP(ftpConfigFromTempDir.config, function () {
+        if (stat.size === 0) {
+          if (newFiles.indexOf(event.document.uri.fsPath) == -1) {
+            ftp.download(ftpConfigFromTempDir.path, remoteTempPath, function () {
+              if (watcher) {
+                setTimeout(function () {
+                  downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, pathUtil.getParentPath(ftpConfigFromTempDir.path), function (localPath) { }, true, true, false);
+                }, 1000);
+              }
+            });
+          }
+          else  //new file
+          {
+            output(newFiles);
+            output("uplooooad");
+            newFiles.splice(newFiles.indexOf(event.document.uri.fsPath), 1);
+            ftp.upload(remoteTempPath, ftpConfigFromTempDir.path, function (err) {
+              if (err) output("upload fail : " + ftpConfigFromTempDir.path + " => " + err.message);
+            });
+          }
         }
-        else  //new file
+        else if (stat.size === 3 && find2D(dirPlaceholders, stat.path) !== -1)
         {
-          ftp.upload(remoteTempPath, ftpConfigFromTempDir.path, function(err){
-            if(err) output("upload fail : " + ftpConfigFromTempDir.path + " => " + err.message);
-          });
+          var pos = find2D(dirPlaceholders, stat.path);
+          downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, dirPlaceholders[pos][1], function (localPath) {
+            vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+            fs.unlink(stat.path);
+          }, true, 1, true);
+          dirPlaceholders.splice(pos, 1);
         }
       });
     }
@@ -151,7 +178,7 @@ function activate(context) {
           }
           downloadRemoteWorkspace(ftp, ftpConfig, parentPath, function(localPath){
             vsUtil.openFolder(localPath);
-          }, false, 1);
+          }, false, 1, false);
         });
       });
     });
@@ -1132,7 +1159,8 @@ function upload(ftp, ftpConfig, localPath, remotePath, backupName, cb){
       main(isDir);
     });
   }
-  function main(isDir){
+  function main(isDir) {
+    output("upload1");
     ftp.upload(localPath, remotePath, function(err){
       // if(!err && !isForceUpload)
       // {
@@ -1199,7 +1227,7 @@ function isCurrentWorkspace(ftpConfig, remotePath){
   var localPath = getRemoteWorkspace(ftpConfig, remotePath);
   return localPath == vsUtil.getWorkspacePath();
 }
-function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecursive){
+function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecursive, whitelist){
   var localPath = getRemoteWorkspace(ftpConfig, remotePath);
   //if(fileUtil.existSync(localPath)) fileUtil.rmSync(localPath);
   if(!notMsg) vsUtil.msg("Please wait......Remote Info downloading... You can see 'output console'");
@@ -1208,9 +1236,9 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
   emptyDownload(remotePath, localPath, function(err){ 
     setRefreshRemoteTimer();
     if(cb)cb(localPath);
-  }, typeof notRecursive === 'number' ? notRecursive : undefined);
+  }, typeof notRecursive === 'number' ? notRecursive : undefined, whitelist);
 
-  function emptyDownload(remotePath, localPath, cb, depth){
+  function emptyDownload(remotePath, localPath, cb, depth, whitelist){
     if(remoteRefreshStopFlag) 
     {
       cb();
@@ -1220,10 +1248,10 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
       if(err && cb || remoteRefreshStopFlag) cb();
       else
       {
-        if(remoteFileList.length > 0) 
-        {
-          fileUtil.mkdirSync(localPath);
-        }
+        /*if(remoteFileList.length > 0) 
+        {*/
+        fileUtil.mkdirSync(localPath);
+        //}
         // var last = remoteFileList.indexOf("node_modules");
         // if(last > -1)
         // {
@@ -1247,7 +1275,24 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
               //console.log(newFilePath);
               if(value.type === 'd')
               {
-                fileUtil.mkdir(newFilePath, function(){
+                fileUtil.stat(newFilePath, function (stat) {
+                  if (stat && stat.type === 'd') {
+                    emptyDownload(remoteRealPath, newFilePath, next, typeof depth === 'number' ? depth - 1 : undefined, true);
+                  } else {
+                    if (stat) {
+                      fileUtil.rm(newFilePath);
+                    }
+                    newFilePath = pathUtil.join(localPath, "@" + value.name);
+                    dirPlaceholders.push([newFilePath, remoteRealPath]);
+                    fileUtil.stat(newFilePath, function (stat) {
+                      if (!stat) {
+                        fileUtil.writeFile(newFilePath, "DIR");
+                      }
+                      next();
+                    });
+                  }
+                });
+                /*fileUtil.mkdir(newFilePath, function(){
                   // if(notRecursive === true || depth === 0) next();
                   // else emptyDownload(pathUtil.join(remotePath, value.name), newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
                 });
@@ -1255,7 +1300,7 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
                 {
                   emptyDownload(remoteRealPath, newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
                 }
-                else next();
+                else next();*/
               }
               else
               {
@@ -1266,6 +1311,9 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
                     fileUtil.writeFile(newFilePath, "");
                   }
                 });
+                if (whitelist) {
+                  newFileWhitelist.push(newFilePath);
+                }
                 next();
               }
             }           
@@ -1323,7 +1371,7 @@ function autoRefreshRemoteTempFiles(notMsg, cb){
           //50 : 4347
           if(!notMsg)vsUtil.msg("Remote Info downloading success.");
           if(cb)cb();
-        }, notMsg);
+        }, notMsg, false);
       });
     }
   }
@@ -1456,15 +1504,16 @@ function updateToRemoteTempPath(remoteTempPath, existCheck, cb){
       function main(){
         remoteRefreshStopFlag = true;
         setTimeout(function(){
-          backup(ftp, ftpConfig.config, ftpConfig.path, function(err){
+          backup(ftp, ftpConfig.config, ftpConfig.path, function (err) {
+            output("upload2");
             ftp.upload(remoteTempPath + (isDir ? "/**" : ""), ftpConfig.path, function(err){
               remoteRefreshStopFlag = false;
               if(err) output("upload fail : " + ftpConfig.path + " => " + err);
               if(cb) cb(err);
             });
           });
-        }, 10);        
-      }      
+        }, 10);
+      }
     });
   }
   else if(CONFIG_PATH_TEMP == remoteTempPath)
@@ -1556,10 +1605,10 @@ function startWatch(){
 
 
   
-  watcher = chokidar.watch(vsUtil.getWorkspacePath(), {ignoreInitial:true, ignorePermissionErrors:true});
+  /*watcher = chokidar.watch(vsUtil.getWorkspacePath(), {ignoreInitial:true, ignorePermissionErrors:true});
   watcher.on('add', (path, stats) => {
     path = pathUtil.normalize(path);
-    if(stats && stats.size)
+    if (stats && stats.size && find2D(dirPlaceholders, path) === -1) // Make sure we're not uploading a directory placeholder file
     {
       addJob(function(next){
         updateToRemoteTempPath(path, function(err){
@@ -1579,7 +1628,7 @@ function startWatch(){
         });
       }
     });
-  });
+  });*/
   /*
   watcher.on('unlink', (path) => {
     path = pathUtil.normalize(path);
@@ -1757,4 +1806,10 @@ function pickWaitList(cb){
       if(cb)cb(newList);
     }
   });
+}
+function find2D(arr, search) {
+  for (var i = 0; i < arr.length; i++) {
+    if (arr[i].indexOf(search) !== -1) return i;
+  }
+  return -1;
 }
