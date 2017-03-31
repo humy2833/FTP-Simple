@@ -63,7 +63,11 @@
       {
         "command": "ftp.remote.workspace.open",
         "title": "ftp-simple : remote directory open to workspace"
-      }
+      },
+			{
+				"command":"ftp.chmod",
+				"title": "ftp-simple : Change mode of remote folder or file"
+			}
     ],
     "keybindings": [
       {
