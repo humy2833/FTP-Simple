@@ -114,10 +114,12 @@ function activate(context) {
         }
         else  //new file
         {
+          /* 어차피 save 할때 저장할테니....잠시 주석
           ftp.upload(remoteTempPath, ftpConfigFromTempDir.path, function(err){
             //console.log("파일 업로드 : ", remoteTempPath);
             if(err) output("upload fail : " + ftpConfigFromTempDir.path + " => " + err.message);
           });
+          */
         }
       });
     }
@@ -694,7 +696,7 @@ function createFTP(ftpConfig, cb){
         output(ftpConfig.name + " - " + "FTP Connecting...");
         try{ftp.connect(ftpConfig);}catch(e){console.log("catch : ", e);}
         ftp.on("open", function(){        
-          count = TRY;
+          //count = TRY;
           output(ftpConfig.name + " - " + "FTP open!!");
           //addFTP(ftpConfig.host, ftp);
           if(cb) cb();
@@ -704,9 +706,10 @@ function createFTP(ftpConfig, cb){
           deleteFTP(ftpConfig.host);
         });
         ftp.on("error", function(err){
-          output(ftpConfig.name + " - " + err);
+          output(ftpConfig.name + " - " + err.message);
           if(String(err).indexOf("Timed out while waiting for handshake") > -1) TRY = 0;
           else if(String(err).indexOf("530 Please login with USER and PASS") > -1) TRY = 0;
+          //console.log("error 발생", count, TRY, String(err));
           if(count < TRY)
           {
             count++;
@@ -1454,7 +1457,18 @@ function updateToRemoteTempPath(remoteTempPath, existCheck, cb){
           if(!result) main();
         });
       }
-      else main();
+      else 
+      {
+        fileUtil.stat(remoteTempPath, function(stats){
+          if(stats.size == 0)
+          {
+            vsUtil.warning("Do you want to save(=upload) the empty file? (If the file exists on the server, overwrite it)", "OK").then(function(btn){
+              if(btn == "OK") main();
+            });
+          }
+          else main();
+        });
+      }
 
       function main(){
         remoteRefreshStopFlag = true;
