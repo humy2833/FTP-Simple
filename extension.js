@@ -163,7 +163,30 @@ function activate(context) {
   }));
 
   
+  subscriptions.push(vscode.commands.registerCommand('ftp.chmod',function(item){
+	  
+	  getSelectedFTPConfig(function(ftpConfig){
+		var ftp = createFTP(ftpConfig, function(){
+			selectFirst(ftpConfig.path);
+		});
+		function selectFirst(path){
+			getSelectedFTPFile(ftp, ftpConfig, path, "Select the file want to chmod",[".", "*"], function(item, parentPath, filePath){          
+				vsUtil.input({
+					prompt:"input chmod"
+				}).then(function(val){
+					fs.chmod(parentPath,val);
+				});
 
+			});
+		
+			
+		};
+	  });
+	  
+	   
+  }));
+
+  
   subscriptions.push(vscode.commands.registerCommand('ftp.download', function () {
     var workspacePath = vsUtil.getWorkspacePath();
     if(!workspacePath)
