@@ -43,14 +43,14 @@ const REMOTE_WORKSPACE_TEMP_PATH = (function(){
     }
   }
 })() || vsUtil.getConfigPath(CONFIG_FTP_WORKSPACE_TEMP);
-//console.log("REMOTE_WORKSPACE_PATH=", REMOTE_WORKSPACE_TEMP_PATH);
+console.log("REMOTE_WORKSPACE_PATH=", REMOTE_WORKSPACE_TEMP_PATH);
 
 
 function activate(context) {
   var subscriptions = [];
   console.log("ftp-simple start");
   outputChannel = vsUtil.getOutputChannel("ftp-simple");
-  output("REMOTE_WORKSPACE_PATH = " + REMOTE_WORKSPACE_TEMP_PATH);
+  //output("REMOTE_WORKSPACE_PATH = " + REMOTE_WORKSPACE_TEMP_PATH);
   destroy(true);
   
   setRefreshRemoteTimer(true);
@@ -109,7 +109,7 @@ function activate(context) {
   
   //vscode.workspace.onDidOpenTextDocument(function(event){
   vscode.window.onDidChangeActiveTextEditor(function(event){
-    //console.log("onDidOpenTextDocument : ", event);
+    //console.log("onDidChangeActiveTextEditor : ", event);
     //if(!event || !event.document)return;   
     if(!(event && event._documentData && event._documentData._uri && event._documentData._uri.fsPath))return; 
     var remoteTempPath = pathUtil.normalize(event._documentData._uri.fsPath);//(event.fileName);
@@ -122,21 +122,19 @@ function activate(context) {
     {
       createFTP(ftpConfigFromTempDir.config, function(ftp){
         var fileName = pathUtil.getFileName(remoteTempPath);
-        if(fileName.indexOf("[DIR]") === 0)
+        if(fileName.indexOf("[DIR] ") === 0)
         {
           var realRemotePath = pathUtil.join(pathUtil.getParentPath(ftpConfigFromTempDir.path), fileName.replace("[DIR] ", ""));
-          downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, realRemotePath, function(err){
-            fileUtil.rm(remoteTempPath);
-          }, true, 1);
+          downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, realRemotePath, function(){}, true, 1);
+          fileUtil.rm(remoteTempPath);
         }
-        else if(new Date().getTime() - stat.date.getTime() >= 100)
+        else if(new Date().getTime() - stat.date.getTime() >= 200)
         {
           ftp.download(ftpConfigFromTempDir.path, remoteTempPath, function(){
-            //console.log("파일 다운로드 : ", remoteTempPath);
             if(watcher)
             {
               setTimeout(function(){
-                downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, pathUtil.getParentPath(ftpConfigFromTempDir.path), function(localPath){}, true, 1);
+                downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, pathUtil.getParentPath(ftpConfigFromTempDir.path), function(){}, true, 1);
               }, 100);
             }
           });
@@ -1284,20 +1282,27 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
   //if(fileUtil.existSync(localPath)) fileUtil.rmSync(localPath);
   if(!notMsg) vsUtil.msg("Please wait......Remote Info downloading... You can see 'output console'");
   //vsUtil.msg("Please wait......Remote Info downloading... You can see 'output console'");
-  removeRefreshRemoteTimer();
-  emptyDownload(remotePath, localPath, function(err){ 
-    setRefreshRemoteTimer();
-    if(cb)cb(localPath);
-  }, typeof notRecursive === 'number' ? notRecursive : undefined);
+  
+  addJob(function(next){
+    stopWatch();
+    removeRefreshRemoteTimer();
+    emptyDownload(remotePath, localPath, function(err){ 
+      startWatch();
+      setRefreshRemoteTimer();
+      if(cb)cb(localPath);      
+      next();
+    }, typeof notRecursive === 'number' ? notRecursive : undefined);
+  });
+  
 
   function emptyDownload(remotePath, localPath, cb, depth){
-    if(remoteRefreshStopFlag)
-    {
-      cb();
-      return;
-    }    
+    // if(remoteRefreshStopFlag)
+    // {
+    //   cb();
+    //   return;
+    // }    
     ftp.ls(remotePath, function(err, remoteFileList){
-      if(err && cb || remoteRefreshStopFlag) cb();
+      if(err && cb) cb();
       else
       {
         //if(remoteFileList.length > 0) 
@@ -1311,11 +1316,11 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
         // }
         fileUtil.ls(localPath, function(err, localFileList){
           loop(remoteFileList, function(i, value, next){
-            if(remoteRefreshStopFlag)
-            {
-              next();
-              return;
-            }
+            // if(remoteRefreshStopFlag)
+            // {
+            //   next();
+            //   return;
+            // }
             var remoteRealPath = pathUtil.join(remotePath, value.name);
             if(isIgnoreFile(ftpConfig, remoteRealPath))
             {
@@ -1340,17 +1345,16 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
                       fileUtil.stat(newFilePath, function(stat){
                         if(!stat)
                         {
-                          make(newFilePath);
+                          make(newFilePath, next);
                         }
                       });
                     }
                   }
                   else
                   {
-                    make(newFilePath);
+                    make(newFilePath, next);
                   }
                 }
-                next();
               });
               //수정본 끝
 
@@ -1388,9 +1392,11 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
       }
     });
   } 
-  function make(newFilePath){
+  function make(newFilePath, cb){
     output("Remote info download : " + newFilePath); 
-    fileUtil.writeFile(newFilePath, "");
+    fileUtil.writeFile(newFilePath, "", function(){
+      if(cb)cb();
+    });
   }
   function deleteDiff(localList, remoteList){    
     for(var i=0, ilen=localList.length; i<ilen; i++)
@@ -1447,7 +1453,7 @@ function setRefreshRemoteTimer(isNow){
   removeRefreshRemoteTimer();
   remoteRefreshFlag = setTimeout(function(){
     autoRefreshRemoteTempFiles(isNow ? false : true, function(){
-      if(isNow)startWatch();
+      if(isNow)setTimeout(function(){startWatch();},3000);
     });
   }, isNow ? 0 : 1000 * 60 * 3);
 }
@@ -1603,6 +1609,7 @@ function updateToRemoteTempPath(remoteTempPath, existCheck, cb){
   }
 }
 function startWatch(){
+  if(watcher) return;
   console.log("startWatch : %s", vsUtil.getWorkspacePath());
 
   //watch.createMonitor(vsUtil.getWorkspacePath(), {interval:1}, function (monitor) {
