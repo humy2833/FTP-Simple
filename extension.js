@@ -24,12 +24,33 @@ const CONFIG_FTP_WORKSPACE_TEMP = "/ftp-simple/remote-workspace-temp";
 const CONFIG_PATH = vsUtil.getConfigPath(CONFIG_NAME);
 const CONFIG_PATH_TEMP = vsUtil.getConfigPath("ftp-simple-temp.json");
 const REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
-const REMOTE_WORKSPACE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_WORKSPACE_TEMP);
+const REMOTE_WORKSPACE_TEMP_PATH = (function(){
+  let p = vsUtil.getConfiguration('ftp-simple.remote-workspace');
+  if(!p) return null;
+  let stat = fileUtil.statSync(p);
+  if(stat)
+  {
+    if(stat.type == 'd') return p;
+    else return null;
+  } 
+  else
+  {
+    try{
+      fileUtil.mkdirSync(p);
+      return p;
+    }catch(e){
+      return null;
+    }
+  }
+})() || vsUtil.getConfigPath(CONFIG_FTP_WORKSPACE_TEMP);
+//console.log("REMOTE_WORKSPACE_PATH=", REMOTE_WORKSPACE_TEMP_PATH);
+
 
 function activate(context) {
   var subscriptions = [];
   console.log("ftp-simple start");
   outputChannel = vsUtil.getOutputChannel("ftp-simple");
+  output("REMOTE_WORKSPACE_PATH = " + REMOTE_WORKSPACE_TEMP_PATH);
   destroy(true);
   
   setRefreshRemoteTimer(true);

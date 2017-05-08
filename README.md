@@ -86,3 +86,22 @@ Example
 	....
 ]
 ```
+
+
+##Remote Config(option)
+You can modify the local workspace path when you open a remote file.
+Modify this option if remote file encoding is not UTF-8.(VSCode appears to have encoding recognition bugs if the workspace path is longer.)
+**"File - Preferences - Settings"** and type in the format shown below.
+
+Example
+```json
+"ftp-simple.remote-workspace" : "c:/remote-workspace"
+```
+
+or
+
+```json
+"ftp-simple" : {
+    "remote-workspace" : "c:/remote-workspace"
+}
+```
