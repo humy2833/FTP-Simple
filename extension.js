@@ -1314,6 +1314,7 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
         // {
         //   remoteFileList = remoteFileList.concat(remoteFileList.splice(last, 1));
         // }
+        moveLast(remoteFileList);
         fileUtil.ls(localPath, function(err, localFileList){
           loop(remoteFileList, function(i, value, next){
             // if(remoteRefreshStopFlag)
@@ -1335,7 +1336,7 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
                 {
                   if(value.type === 'd')
                   {
-                    if(typeof notRecursive === 'number' && depth > 0)
+                    if(typeof notRecursive === 'number' && depth > 0 || (notRecursive === false || notRecursive === null || notRecursive === undefined))
                     {
                       emptyDownload(remoteRealPath, newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
                     }
@@ -1424,7 +1425,7 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
 function isRemoteTempWorkspaceFile(path){
   return path.indexOf(REMOTE_WORKSPACE_TEMP_PATH) === 0;
 }
-function autoRefreshRemoteTempFiles(notMsg, cb){
+function autoRefreshRemoteTempFiles(notMsg, loadAll, cb){
   var workspacePath = vsUtil.getWorkspacePath();
   if(workspacePath)
   {
@@ -1438,10 +1439,11 @@ function autoRefreshRemoteTempFiles(notMsg, cb){
     {
       createFTP(ftpConfigFromTempDir.config, function(ftp){
         //stopWatch();
+        console.log("전체 로딩 : ", loadAll);
         downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, ftpConfigFromTempDir.path, function(){
           if(!notMsg)vsUtil.msg("Remote Info downloading success.");
           if(cb)cb();
-        }, notMsg, notMsg === false ? 1 : undefined);
+        }, notMsg, loadAll);
       });
     }
   }
@@ -1450,9 +1452,12 @@ function removeRefreshRemoteTimer(){
   clearTimeout(remoteRefreshFlag);
 }
 function setRefreshRemoteTimer(isNow){
+  var loadAll = vsUtil.getConfiguration("ftp-simple.remote-workspace-load-all");
+  if(loadAll === false) loadAll = 1;
+  else if(loadAll === true) loadAll = null;
   removeRefreshRemoteTimer();
   remoteRefreshFlag = setTimeout(function(){
-    autoRefreshRemoteTempFiles(isNow ? false : true, function(){
+    autoRefreshRemoteTempFiles(isNow ? false : true, loadAll, function(){
       if(isNow)setTimeout(function(){startWatch();},3000);
     });
   }, isNow ? 0 : 1000 * 60 * 3);
@@ -1888,4 +1893,20 @@ function pickWaitList(cb){
       if(cb)cb(newList);
     }
   });
+}
+function moveLast(list){
+  var len = list.length;
+  var count = 0;
+  var i = 0;
+  while(count < len)
+  {
+    var name = list[i].name || list[i];
+    if(name === 'node_modules')
+    {
+      list.push(list[i]);
+    	list.splice(i, 1);
+    }
+    else i++;
+    count++;
+  }
 }

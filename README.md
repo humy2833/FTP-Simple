@@ -89,19 +89,14 @@ Example
 
 
 ##Remote Config(option)
-You can modify the local workspace path when you open a remote file.
-Modify this option if remote file encoding is not UTF-8.(VSCode appears to have encoding recognition bugs if the workspace path is longer.)
 **"File - Preferences - Settings"** and type in the format shown below.
+* **ftp-simple.remote-workspace** - _string_ - (option) You can modify the local workspace path when you open a remote file. Modify this option if remote file encoding is not UTF-8.(VSCode appears to have encoding recognition bugs if the workspace path is longer.)
+* **ftp-simple.remote-workspace-load-all** - _boolean_ - (option) Indicates whether all files are loaded during initial run. If false, the sub folder ([DIR]) will load when it is clicked. **Default:** true
 
 Example
 ```json
-"ftp-simple.remote-workspace" : "c:/remote-workspace"
-```
-
-or
-
-```json
 "ftp-simple" : {
-    "remote-workspace" : "c:/remote-workspace"
+    "remote-workspace" : "c:/remote-workspace",
+		"remote-workspace-load-all" : true
 }
 ```
