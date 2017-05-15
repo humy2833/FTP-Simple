@@ -96,7 +96,7 @@ Example
 Example
 ```json
 "ftp-simple" : {
-    "remote-workspace" : "c:/remote-workspace",
-		"remote-workspace-load-all" : true
+	"remote-workspace" : "c:/remote-workspace",
+	"remote-workspace-load-all" : true
 }
 ```

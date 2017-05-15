@@ -1356,6 +1356,7 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
                     make(newFilePath, next);
                   }
                 }
+                else next();
               });
               //수정본 끝
 
@@ -1439,7 +1440,6 @@ function autoRefreshRemoteTempFiles(notMsg, loadAll, cb){
     {
       createFTP(ftpConfigFromTempDir.config, function(ftp){
         //stopWatch();
-        console.log("전체 로딩 : ", loadAll);
         downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, ftpConfigFromTempDir.path, function(){
           if(!notMsg)vsUtil.msg("Remote Info downloading success.");
           if(cb)cb();
