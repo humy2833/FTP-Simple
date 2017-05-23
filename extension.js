@@ -1332,31 +1332,47 @@ function downloadRemoteWorkspace(ftp, ftpConfig, remotePath, cb, notMsg, notRecu
               var newFilePath = pathUtil.join(localPath, value.name);
               //수정본 시작
               fileUtil.stat(newFilePath, function(stat){
-                if(!stat)
-                {
+                //console.log("newFilePath : ", newFilePath);
+                //if(!stat)
+                //{
+                  let recursive = typeof notRecursive === 'number' && depth > 0 || notRecursive === false || notRecursive === null || notRecursive === undefined;
                   if(value.type === 'd')
                   {
-                    if(typeof notRecursive === 'number' && depth > 0 || (notRecursive === false || notRecursive === null || notRecursive === undefined))
+                    let tempDir = pathUtil.join(localPath, "[DIR] " + value.name);
+                    if(recursive)
                     {
+                      //let tempDir = pathUtil.join(localPath, "[DIR] " + value.name);
+                      fileUtil.exist(tempDir, function(bool){
+                        if(bool) fileUtil.rm(tempDir);
+                      });
                       emptyDownload(remoteRealPath, newFilePath, next, typeof depth === 'number' ? depth-1 : undefined);
                     }
                     else
                     {
-                      newFilePath = pathUtil.join(localPath, "[DIR] " + value.name);
-                      fileUtil.stat(newFilePath, function(stat){
-                        if(!stat)
-                        {
-                          make(newFilePath, next);
-                        }
-                      });
+                      //newFilePath = pathUtil.join(localPath, "[DIR] " + value.name);
+                      if(!stat)
+                      {
+                        fileUtil.stat(tempDir, function(stat){
+                          if(!stat)
+                          {
+                            make(tempDir, next);
+                          }
+                          else next();
+                        });
+                      }
+                      else next();
                     }
                   }
-                  else
+                  else if(!stat)
                   {
                     make(newFilePath, next);
                   }
-                }
-                else next();
+                  else
+                  {
+                    next();
+                  }
+                //}
+                //else next();
               });
               //수정본 끝
 
@@ -1440,6 +1456,7 @@ function autoRefreshRemoteTempFiles(notMsg, loadAll, cb){
     {
       createFTP(ftpConfigFromTempDir.config, function(ftp){
         //stopWatch();
+        //console.log("loadAll-autoRefreshRemoteTempFiles : ", loadAll);
         downloadRemoteWorkspace(ftp, ftpConfigFromTempDir.config, ftpConfigFromTempDir.path, function(){
           if(!notMsg)vsUtil.msg("Remote Info downloading success.");
           if(cb)cb();
