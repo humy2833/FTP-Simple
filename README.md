@@ -80,7 +80,10 @@ Example
 		"path" : "/home",
 		"confirm" : false,
 		"backup" : "C:/backup",
-		"project" :  {"c:/projects/project1":"/home/user/project"},
+		"project" :  {
+			"c:/projects/project1" : "/home/user/project",
+			"c:/projects/project2" : {"path":"/home/user/project2", "save":true}  //When the "save" value is "true", save immediately without confirm
+		},
 		"ignore" : ["/**/node_modules", "/**/*.class"]
 	},
 	....

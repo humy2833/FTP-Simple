@@ -453,8 +453,39 @@ function activate(context) {
     var baseProjects = getProjectPathInConfig();
     var isDir = fileUtil.isDirSync(localFilePath);
     var isIncludeDir = true;
-    getSelectProject();
+    checkAndRunAutoUpload().then(flag => {
+      if(flag) getSelectProject();
+    });
 
+    function checkAndRunAutoUpload(){
+      if(!baseProjects) return Promise.resolve(1);
+      let count = 0;
+      let task = [];
+      let orgForce = isForceUpload;
+      for(let o of baseProjects)
+      {
+        if(o.autosave)
+        {
+          task.push(function(next){
+            createFTP(o.config, function(ftp){
+              upload(ftp, o.config, localFilePath, pathUtil.join(o.path.remote, pathUtil.getRelativePath(workspacePath, localFilePath)), function(err){
+                count++;
+                next();
+              });
+            });
+          });
+        }
+      }
+      if(task.length)
+      {
+        return new Promise(ok => {
+          loop.series(task, function(err){
+            ok(count == baseProjects.length ? 0 : 1);
+          });
+        });
+      }
+      else return Promise.resolve(1);
+    }
     function getSelectProject(){
       if(baseProjects)
       {
@@ -737,7 +768,7 @@ function createFTP(ftpConfig, cb){
         var count = 0;
         //var ftp = new EasyFTP();
         output(ftpConfig.name + " - " + "FTP Connecting...");
-        try{ftp.connect(ftpConfig);}catch(e){console.log("catch : ", e);}
+        try{ftp.connect(ftpConfig, ftpConfig.parallel ? ftpConfig.parallel : 1);}catch(e){console.log("catch : ", e);}
         ftp.on("open", function(){        
           //count = TRY;
           output(ftpConfig.name + " - " + "FTP open!!");
@@ -1770,34 +1801,52 @@ function playJob(){
     watchJob.flag = false;
   });
 }
+/**
+ * 해당 워크스페이스가 프로젝트 설정 있는지 체크 후 정보 가져오기
+ */
 function getProjectPathInConfig(){
   var workspacePath = vsUtil.getWorkspacePath();
   var config = getConfig();
-  var result = [];
+  var result = [];  //{config:ftpconfig, path:{local:path, remote:path}}
   if(config && config instanceof Array)
   {
-    for(var o of config)
+    for(let o of config)
     {
       if(!o.project || typeof o.project !== 'object') continue;
-      for(var k in o.project)
+      for(let k in o.project)
       {
-        var v = o.project[k];
+        let v = o.project[k];
         if(v instanceof Array)
         {
-          for(var a of v)
+          for(let a of v)
           {
-            var p = same(k, a);
-            if(p) result.push({config:o, path:p});
+            if(typeof a === 'object' && a.path)
+            {
+              let p = same(k, a.path);
+              let save = a.save === true ? true : false;
+              if(p) result.push({config:o, path:p, autosave:save});
+            }
+            else if(typeof a === 'string')
+            {
+              let p = same(k, a);
+              if(p) result.push({config:o, path:p});
+            }
           }         
         }
         // else if(typeof v === 'object')
         // {
         //   var p = same(k, v.path);
         //   if(p) result.push({config:o, path:p, ignore:v.ignore});
-        // }        
-        else
+        // }
+        else if(typeof v === 'object' && v.path)
         {
-          var p = same(k, v);
+          let p = same(k, v.path);
+          let save = v.save === true ? true : false;
+          if(p) result.push({config:o, path:p, autosave:save});
+        }        
+        else if(typeof v === 'string')
+        {
+          let p = same(k, v);
           if(p) result.push({config:o, path:p});
         }
       }
