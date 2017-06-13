@@ -216,10 +216,10 @@ function activate(context) {
     }
     getSelectedFTPConfig(function(ftpConfig)
     {
-      var ftp = createFTP(ftpConfig, function(){
-        selectFirst(ftpConfig.path);
+      createFTP(ftpConfig, function(ftp){
+        selectFirst(ftp, ftpConfig.path);
       });
-      function selectFirst(path){
+      function selectFirst(ftp, path){
         getSelectedFTPFile(ftp, ftpConfig, path, "Select the file or directory want to download", [".", "*"], function(serverItem, serverParentPath, serverFilePath){
           getSelectedLocalPath(workspacePath, workspacePath, "Select the path want to download", ".", "D", selectItem); 
           function selectItem(item, parentPath, filePath){
@@ -251,7 +251,7 @@ function activate(context) {
               {
                 if(!serverFilePath)
                   output(ftpConfig.name + " - Directory downloaded : " + localPath + (isAll ? "/*" : ""));
-                selectFirst(pathUtil.getParentPath(remotePath));
+                selectFirst(ftp, pathUtil.getParentPath(remotePath));
               }
             })
           }
@@ -328,10 +328,10 @@ function activate(context) {
     }
     getSelectedFTPConfig(function(ftpConfig)
     {
-      var ftp = createFTP(ftpConfig, function(){
-        selectFirst(ftpConfig.path);
+      createFTP(ftpConfig, function(ftp){
+        selectFirst(ftp, ftpConfig.path);
       });
-      function selectFirst(path){
+      function selectFirst(ftp, path){
         getSelectedFTPFile(ftp, ftpConfig, path, "Select the file or path want to delete", [{label:".", description:ftpConfig.path}], function selectItem(item, parentPath, filePath){
           var deletePath = filePath ? filePath : parentPath;
           vsUtil.warning("Are you sure you want to delete '"+deletePath+"'?", "Back", "OK")
@@ -343,7 +343,7 @@ function activate(context) {
                 else 
                 {
                   output("Deleted : " + deletePath);
-                  selectFirst(filePath ? parentPath : pathUtil.getParentPath(parentPath));
+                  selectFirst(ftp, filePath ? parentPath : pathUtil.getParentPath(parentPath));
                 }
               });
             }
@@ -357,13 +357,13 @@ function activate(context) {
   subscriptions.push(vscode.commands.registerCommand('ftp.mkdir', function () {
     getSelectedFTPConfig(function(ftpConfig)
     {
-      var ftp = createFTP(ftpConfig, function(){
-        selectFirst(ftpConfig.path);
+      createFTP(ftpConfig, function(ftp){
+        selectFirst(ftp, ftpConfig.path);
       });
-      function selectFirst(path){
+      function selectFirst(ftp, path){
         getSelectedFTPFile(ftp, ftpConfig, path, "Select the path want to create directory", [{label:".", description:ftpConfig.path}], "D", function selectItem(item, parentPath, filePath){
           createRemoteDirecotry(ftp, parentPath, "", function(){
-            selectFirst(parentPath);
+            selectFirst(ftp, parentPath);
           });
         });
       }
@@ -425,14 +425,14 @@ function activate(context) {
   subscriptions.push(vscode.commands.registerCommand('ftp.open', function () {
     getSelectedFTPConfig(function(ftpConfig)
     {
-      var ftp = createFTP(ftpConfig, function(){
-          selectFirst(ftpConfig.path);
+      createFTP(ftpConfig, function(ftp){
+          selectFirst(ftp, ftpConfig.path);
       });
       var column = 1;
-      function selectFirst(path){
+      function selectFirst(ftp, path){
         getSelectedFTPFile(ftp, ftpConfig, path, "Select the file want to open", function(item, parentPath, filePath){          
           downloadOpen(ftp, ftpConfig, filePath, function(err){            
-            if(!err && column <= 3) selectFirst(parentPath);
+            if(!err && column <= 3) selectFirst(ftp, parentPath);
           }, column++);
         });
       }
@@ -506,7 +506,7 @@ function activate(context) {
             isForceUpload = true;
             var backupName = commonUtil.getNow().replace(/[^0-9]/g, '');
             loop(baseProjects, function(i, value, next){
-              var ftp = createFTP(value.config, function(){
+              createFTP(value.config, function(ftp){
                 var remotePath = pathUtil.join(value.path.remote, pathUtil.getRelativePath(workspacePath, localFilePath));
                 if(value.config.backup)
                 {
@@ -543,7 +543,7 @@ function activate(context) {
                     var backupName = commonUtil.getNow().replace(/[^0-9]/g, '');
                     if(typeof item === 'object')
                     {
-                      var ftp = createFTP(item, function(){
+                      createFTP(item, function(ftp){
                         if(item.backup)
                         {
                           loop(list, function(i, value, next){
@@ -570,7 +570,7 @@ function activate(context) {
                     else if(item === 'SAVE ALL')
                     {
                       loop(baseProjects, function(i, value, next){
-                        var ftp = createFTP(value.config, function(){
+                        createFTP(value.config, function(ftp){
                           if(value.config.backup)
                           {
                             loop(list, function(j, v, next){
@@ -625,11 +625,13 @@ function activate(context) {
       }
     }
     function saveMain(ftpConfig){
-      var ftp = createFTP(ftpConfig, function(){
-        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:ftpConfig.path}, "= CREATE DIRECTORY ="], (isDir ? "D" : null), selectItem);
+      createFTP(ftpConfig, function(ftp){
+        getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the path" + (isDir ? "" : " or file") + " want to save", [{label:".", description:ftpConfig.path}, "= CREATE DIRECTORY ="], (isDir ? "D" : null), function(item, path, filePath){
+          selectItem(ftp, item, path, filePath);
+        });
       });
       
-      function selectItem(item, path, filePath){
+      function selectItem(ftp, item, path, filePath){
         if(filePath)
         {
           if(ftpConfig.confirm === false) 
@@ -752,14 +754,14 @@ function getPassword(ftpConfig, cb){
   }
   else if(cb)
   {
-    cb()
+    cb();
   }
 }
 function createFTP(ftpConfig, cb){
-  var ftp = getFTP(ftpConfig.host, function(result){
-    if(result)
+  getFTP(ftpConfig.host, function(ftp, isConnected, alreadyConnect){
+    if(isConnected)
     {
-      if(cb) cb(result);
+      if(cb) cb(ftp);
     }
     else
     {
@@ -769,9 +771,10 @@ function createFTP(ftpConfig, cb){
         //var ftp = new EasyFTP();
         output(ftpConfig.name + " - " + "FTP Connecting...");
         try{ftp.connect(ftpConfig, ftpConfig.parallel ? ftpConfig.parallel : 1);}catch(e){console.log("catch : ", e);}
-        ftp.on("open", function(){        
-          //count = TRY;
+        ftp.on("open", function(){
+          count = TRY;
           output(ftpConfig.name + " - " + "FTP open!!");
+          if(alreadyConnect) vsUtil.msg(ftpConfig.name + " - FTP reopen!!");
           //addFTP(ftpConfig.host, ftp);
           if(cb) cb(ftp);
         });
@@ -790,7 +793,7 @@ function createFTP(ftpConfig, cb){
             setTimeout(function(){
               output(ftpConfig.name + " - " + "FTP Connecting try...");
               createFTP(ftpConfig, cb);//ftp.connect(ftpConfig);
-            }, 200);
+            }, 500);
           }
           else if(count == TRY)
           {
@@ -809,7 +812,7 @@ function createFTP(ftpConfig, cb){
       });
     }
   });
-  return ftp;
+  
 
   // function addFTP(host, ftp){
   //   var result = true;
@@ -825,38 +828,26 @@ function createFTP(ftpConfig, cb){
   }
   function getFTP(host, cb){
     var key = commonUtil.md5(host);
+    var isConnected = false;
+    var alreadyConnect = false;
     if(ftps[key])
     {
-      var isTimeout = false;
-      var flag = setTimeout(function(){
-        isTimeout = true;
-        newInstance();
-        if(cb) process.nextTick(cb);
-      }, 3000);
-      try{
-        ftps[key].pwd(function(err, path){
-          clearTimeout(flag);
-          if(!isTimeout)
-          {
-            if(err) newInstance();
-            if(cb) process.nextTick(cb, err ? undefined : ftps[key]);
-          }
-        });
-      }catch(e){
-        newInstance();
-        if(cb)cb();
-      }
+      alreadyConnect = true;
+      ftps[key].pwd(function(err, path){
+        if(err)
+        {
+          if(ftps[key])try{ftps[key].close();}catch(e){}
+          ftps[key] = new EasyFTP();
+        }
+        else isConnected = true;
+        if(cb) setImmediate(cb, ftps[key], isConnected, alreadyConnect);
+      });      
     }
     else 
     {
-      newInstance();
-      if(cb) process.nextTick(cb);
-    }
-    function newInstance(){
-      if(ftps[key]) ftps[key].close();
       ftps[key] = new EasyFTP();
+      if(cb) setImmediate(cb, ftps[key], isConnected, alreadyConnect);
     }
-    return ftps[key];
   }
 }
 function closeFTP(host){
@@ -1173,6 +1164,7 @@ function getBackupList(localPath, remotePath, cb){
   fileUtil.isDir(localPath, function(err, isDir){
     if(isDir)
     {
+      output("Check backup files...");
       var wsLen = vsUtil.getWorkspacePath().length;
       var folder = localPath.substring(wsLen);    
       wsLen += folder.length;        
@@ -1220,7 +1212,7 @@ function upload(ftp, ftpConfig, localPath, remotePath, backupName, cb){
       //   downloadOpen(ftp, ftpConfig, remotePath);
       // }
       if(!err && isDir) output(ftpConfig.name + " - Directory uploaded : " + remotePath);
-      if(err) output("upload fail : " + remotePath + " => " + err.message);
+      if(err) output("upload fail : [ " + localPath + " => " + remotePath + " ] " + err.message);
       if(cb) cb(err);
     });
   }
@@ -1745,6 +1737,7 @@ function startWatch(){
     path = pathUtil.normalize(path);
     if(stats && stats.size)
     {
+      //console.log("watch add : ", path);
       addJob(function(next){
         updateToRemoteTempPath(path, function(err){
           if(!err)fileUtil.writeFile(path, "");
@@ -1758,6 +1751,7 @@ function startWatch(){
     fileUtil.ls(path, function(err, list){
       if(!err && list.length == 0)
       {
+        //console.log("watch addDir : ", path);
         addJob(function(next){
           updateToRemoteTempPath(path, function(){next();});
         });
