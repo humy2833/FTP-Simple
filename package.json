@@ -2,7 +2,7 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.4.25",
+  "version": "0.5.0",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
@@ -89,6 +89,10 @@
           "group": "ftp-simple"
         },
         {
+          "command": "ftp.download",
+          "group": "ftp-simple"
+        },
+        {
           "command": "ftp.diff",
           "group": "ftp-simple"
         },
@@ -103,6 +107,10 @@
           "group": "ftp-simple"
         },
         {
+          "command": "ftp.download",
+          "group": "ftp-simple"
+        },
+        {
           "command": "ftp.diff",
           "group": "ftp-simple"
         },
@@ -111,9 +119,13 @@
           "group": "ftp-simple"
         }
       ],
-      "editor/title": [
+      "editor/title/context": [
         {
           "command": "ftp.save",
+          "group": "ftp-simple"
+        },
+        {
+          "command": "ftp.download",
           "group": "ftp-simple"
         },
         {
@@ -135,7 +147,7 @@
   },
   "dependencies": {
     "chokidar": "^1.6.1",
-    "easy-ftp": "^0.3.32",
+    "easy-ftp": "^0.3.34",
     "easy-loop": "^1.6.0",
     "filesize": "^3.3.0",
     "fs-extra": "^0.30.0",

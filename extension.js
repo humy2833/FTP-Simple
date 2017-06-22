@@ -207,57 +207,92 @@ function activate(context) {
 
   
 
-  subscriptions.push(vscode.commands.registerCommand('ftp.download', function () {
+  subscriptions.push(vscode.commands.registerCommand('ftp.download', function (item) {
     var workspacePath = vsUtil.getWorkspacePath();
     if(!workspacePath)
     {
       vsUtil.msg("Please, open the workspace directory first.");
       return;
     }
-    getSelectedFTPConfig(function(ftpConfig)
+    var isMore = true;
+    var localFilePath = vsUtil.getActiveFilePath(item);
+    var baseProjects = getProjectPathInConfig();
+    var ftpConfig = getFTPConfigFromRemoteTempPath(localFilePath);
+    
+    //remote 가 아니고 설정된 프로젝트의 워크스페이스라면
+    if(!ftpConfig.config && baseProjects)
     {
+      getSelectedProjectFTPConfig(baseProjects, 'DOWNLOAD', function(item){
+        if(typeof item === 'object')
+        {
+          isMore = false;
+          createFTP(item, function(ftp){
+            fileUtil.isDir(localFilePath, function(isDir){
+              var remotePath = pathUtil.join(item.remote, pathUtil.getRelativePath(workspacePath, localFilePath));
+              download(ftp, item, remotePath, localFilePath, isDir, !isDir);
+            });
+          });
+        }
+        else
+        {
+          getSelectedFTPConfig(downMain);
+        }
+      });
+    }
+    else
+    {
+      getSelectedFTPConfig(downMain);
+    }
+
+    function downMain(ftpConfig){
       createFTP(ftpConfig, function(ftp){
         selectFirst(ftp, ftpConfig.path);
       });
-      function selectFirst(ftp, path){
-        getSelectedFTPFile(ftp, ftpConfig, path, "Select the file or directory want to download", [".", "*"], function(serverItem, serverParentPath, serverFilePath){
-          getSelectedLocalPath(workspacePath, workspacePath, "Select the path want to download", ".", "D", selectItem); 
-          function selectItem(item, parentPath, filePath){
-            var isAll = serverItem.label === "*";
-            var isDir = serverFilePath ? false : true;
-            var localPath = isDir ? (isAll ? parentPath : pathUtil.join(parentPath, pathUtil.getFileName(serverParentPath))) : pathUtil.join(parentPath, serverItem.label);
-            var remotePath = isDir ? serverParentPath + "/**" : serverFilePath;
-            if(isAll || fileUtil.existSync(localPath))
-            {
-              confirmExist(ftp, isDir, parentPath, remotePath, localPath, isAll);
-            }
-            else
-            {
-              download(ftp, remotePath, localPath);
-            }
+    }
+    function selectFirst(ftp, path){
+      getSelectedFTPFile(ftp, ftpConfig, path, "Select the file or directory want to download", [".", "*"], function(serverItem, serverParentPath, serverFilePath){
+        getSelectedLocalPath(workspacePath, workspacePath, "Select the path want to download", ".", "D", selectItem); 
+        function selectItem(item, parentPath, filePath){
+          var isAll = serverItem.label === "*";
+          var isDir = serverFilePath ? false : true;
+          var localPath = isDir ? (isAll ? parentPath : pathUtil.join(parentPath, pathUtil.getFileName(serverParentPath))) : pathUtil.join(parentPath, serverItem.label);
+          var remotePath = isDir ? serverParentPath + "/**" : serverFilePath;
+          if(isAll || fileUtil.existSync(localPath))
+          {
+            confirmExist(ftp, isDir, parentPath, remotePath, localPath, isAll);
           }
-          function confirmExist(ftp, isDir, path, remotePath, localPath, isAll){
-            var title = "Already exist " + (isDir ? "directory" : "file") + " '"+localPath+"'. Overwrite?";
-            if(isAll) title = "If the file exists it is overwritten by force. Continue?";
-            vsUtil.warning(title, "Back", "OK").then(function(btn){
-              if(btn == "OK") download(ftp, remotePath, localPath, isAll);
-              else if(btn == "Back") getSelectedLocalPath(path, workspacePath, "Select the path want to download", ".", "D", selectItem);
-            });
+          else
+          {
+            download(ftp, ftpConfig, remotePath, localPath, false, serverFilePath);
           }
-          function download(ftp, remotePath, localPath, isAll){
-            ftp.download(remotePath, localPath, function(err){
-              if(err) output("download fail : " + remotePath + " => " + err.message);
-              else 
-              {
-                if(!serverFilePath)
-                  output(ftpConfig.name + " - Directory downloaded : " + localPath + (isAll ? "/*" : ""));
-                selectFirst(ftp, pathUtil.getParentPath(remotePath));
-              }
-            })
+        }
+        function confirmExist(ftp, isDir, path, remotePath, localPath, isAll){
+          var title = "Already exist " + (isDir ? "directory" : "file") + " '"+localPath+"'. Overwrite?";
+          if(isAll) title = "If the file exists it is overwritten by force. Continue?";
+          vsUtil.warning(title, "Back", "OK").then(function(btn){
+            if(btn == "OK") download(ftp, ftpConfig, remotePath, localPath, isAll, serverFilePath);
+            else if(btn == "Back") getSelectedLocalPath(path, workspacePath, "Select the path want to download", ".", "D", selectItem);
+          });
+        }
+      });
+    }
+    function download(ftp, ftpConfig, remotePath, localPath, isAll, serverFilePath){
+      ftp.download(remotePath, localPath, function(err){
+        if(err) 
+        {
+          for(let o of err)
+          {
+            output("download fail : " + o.remote + " => " + o.message);
           }
-        });
-      }
-    });
+        }
+        else 
+        {
+          if(!serverFilePath)
+            output(ftpConfig.name + " - Directory downloaded : " + localPath + (isAll ? "/*" : ""));
+          if(isMore)selectFirst(ftp, pathUtil.getParentPath(remotePath));
+        }
+      })
+    }
   }));
 
   subscriptions.push(vscode.commands.registerCommand('ftp.diff', function (item) {
@@ -1249,7 +1284,13 @@ function isNewerThenLocal(ftp, ftpConfig, localPath, remotePath, cb){
 function download(ftp, ftpConfig, remotePath, cb){
   var localPath = pathUtil.join(REMOTE_TEMP_PATH, makeTempName(ftpConfig), remotePath);
   ftp.download(remotePath, localPath, function(err){
-    if(err) output("download fail : " + remotePath + " => " + err.message);
+    if(err)
+    {
+      for(let o of err)
+      {
+        output("download fail : " + o.remote + " => " + o.message);
+      }
+    }
     if(cb)cb(err, localPath);
   });
 }
@@ -1543,7 +1584,13 @@ function backup(ftp, ftpConfig, path, backupName, cb){
             if(result)
             {
               ftp.download(path, savePath, function(err){
-                if(err) output("Backup fail : " + err.message);
+                if(err)
+                {
+                  for(let o of err)
+                  {
+                    output("Backup fail : " + o.message);
+                  }
+                }
                 //else output("Backup Success : " + path + " => " + savePath);
                 cb(err);
               });
