@@ -64,11 +64,12 @@ function activate(context) {
   vscode.workspace.onDidCloseTextDocument(function(event){    
     //파일 닫을때, 파일 형식 바뀔때
     //console.log("onDidCloseTextDocument 파일 닫을때 : ", event, vsUtil.getActiveFilePathAll());
-    
+    //console.log(JSON.stringify(event, null, '\t'));
     var remoteTempPath = pathUtil.normalize(event.fileName);
     if(!vsUtil.isChangeTextDocument(remoteTempPath)) return;    
     //console.log("파일 닫기 : ", remoteTempPath);
     var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
+    
     if(isRemoteTempWorkspaceFile(remoteTempPath))
     {      
       var stat = fileUtil.statSync(remoteTempPath);
@@ -96,7 +97,7 @@ function activate(context) {
         fileUtil.rm(path);
       });
     }
-    else if(CONFIG_PATH_TEMP == remoteTempPath)
+    else if(CONFIG_PATH_TEMP == remoteTempPath || CONFIG_PATH_TEMP + ".git" == remoteTempPath)
     {
       fileUtil.rm(CONFIG_PATH_TEMP);
     }
@@ -227,7 +228,7 @@ function activate(context) {
         {
           isMore = false;
           createFTP(item, function(ftp){
-            fileUtil.isDir(localFilePath, function(isDir){
+            fileUtil.isDir(localFilePath, function(err, isDir){
               var remotePath = pathUtil.join(item.remote, pathUtil.getRelativePath(workspacePath, localFilePath));
               download(ftp, item, remotePath, localFilePath, isDir, !isDir);
             });
