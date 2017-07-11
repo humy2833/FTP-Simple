@@ -1656,10 +1656,16 @@ function updateToRemoteTempPath(remoteTempPath, existCheck, cb){
   {
     var isDir = fileUtil.isDirSync(remoteTempPath);
     createFTP(ftpConfig.config, function(ftp){
-      if(existCheck)
+      if(existCheck || existCheck !== false && ftpConfig.config.confirm === true)
       {
-        ftp.exist(remoteTempPath, function(result){
+        ftp.exist(ftpConfig.path, function(result){
           if(!result) main();
+          else
+          {
+            vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+ftpConfig.path+"'. Overwrite?", "OK").then(function(btn){
+              if(btn == "OK") main();
+            });
+          }
         });
       }
       else 

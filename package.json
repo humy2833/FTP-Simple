@@ -2,7 +2,7 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
