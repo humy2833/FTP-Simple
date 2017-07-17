@@ -1,3 +1,4 @@
+'use strict';
 var vscode = require('vscode');
 var fs = require('fs');
 var fse = require('fs-extra');
