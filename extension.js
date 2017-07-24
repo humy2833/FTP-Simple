@@ -1068,7 +1068,7 @@ function getSelectedFTPConfig(cb){
 }
 function getSelectedLocalPath(path, rootPath, placeHolder, addItems, filter, cb){
   vsUtil.getFileItemForPick(path, filter, function(items){
-    arr = vsUtil.addItemForFile(items, addItems, path, rootPath);
+    var arr = vsUtil.addItemForFile(items, addItems, path, rootPath);
     vsUtil.pick(arr, placeHolder + ".  Now path '" + path + "'").then(function(item){
       if(item)
       {
