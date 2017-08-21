@@ -1,4 +1,4 @@
-##Function
+## Function
 
 - Directly **Open**, **Edit** and **Save** on server files.
 - **Save** the **local file** or **directory** to **server**(=upload and backup option)
@@ -8,7 +8,7 @@
 - **Compare** a local file server file.
 - **Remote directory open to workspace** (Beta version)
 
-##Available commands
+## Available commands
 * config - Set the ftp connection information.
 * create directory - Create a directory on ftp server.
 * open - Open the file directly from ftp server and when you save upload it to the ftp server.
@@ -22,13 +22,13 @@
                                      
 																		 
  
-##Startup Settings
+## Startup Settings
 1. Press 'F1'  
 2. Enter 'ftp-simple' 
 3. Pick 'CONFIG' 
 4. Enter ftp connection information and save
 
-##Config setting example
+## Config setting example
 See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 
 * **name** - _string_	- Display name.
@@ -91,7 +91,7 @@ Example
 ```
 
 
-##Remote Config(option)
+## Remote Config(option)
 **"File - Preferences - Settings"** and type in the format shown below.
 * **ftp-simple.remote-workspace** - _string_ - (option) You can modify the local workspace path when you open a remote file. Modify this option if remote file encoding is not UTF-8.(VSCode appears to have encoding recognition bugs if the workspace path is longer.)
 * **ftp-simple.remote-workspace-load-all** - _boolean_ - (option) Indicates whether all files are loaded during initial run. If false, the sub folder ([DIR]) will load when it is clicked. **Default:** true
