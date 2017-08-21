@@ -39,6 +39,7 @@ See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 * **password** - _string_	- (option) password for authentication.
 * **privateKey** - _string_	- (option) sftp only. String that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
 * **passphrase** - _string_	- (option) Use sftp 'privateKey' only. For an encrypted private key, this is the passphrase used to decrypt it. **Default:** none
+* **agent** - _string_ - (option) sftp only. Path to SSH-Agent socket or use 'pageant' on Windows for Putty’s Pageant. **Important:** Set password to something, it will not be used but otherwise you will be asked for one! **Default:** none
 * **path** - _string_	- (option) remote root path. **Default:** '/'
 * **autosave** - _boolean_	- (option) To determine whether the automatically uploaded when you open a file directly and modify and save. **Default:** true
 * **backup** - _string_	- (option) The local path you want to back up before file saving on the server.
@@ -85,6 +86,18 @@ Example
 			"c:/projects/project2" : {"path":"/home/user/project2", "save":true}  //When the "save" value is "true", save immediately without confirm
 		},
 		"ignore" : ["/**/node_modules", "/**/*.class"]
+	},
+	{
+		"name": "my server4",
+		"host": "127.0.0.1",
+		"port": 22,
+		"type": "sftp",
+		"username": "id",
+		"password": "x",
+		"agent": "/run/user/1111/keyring/ssh",
+		"path": "/",
+		"autosave": true,
+		"confirm": false
 	},
 	....
 ]
