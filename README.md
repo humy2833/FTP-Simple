@@ -1,4 +1,4 @@
-##Function
+## Function
 
 - Directly **Open**, **Edit** and **Save** on server files.
 - **Save** the **local file** or **directory** to **server**(=upload and backup option)
@@ -8,7 +8,7 @@
 - **Compare** a local file server file.
 - **Remote directory open to workspace** (Beta version)
 
-##Available commands
+## Available commands
 * config - Set the ftp connection information.
 * create directory - Create a directory on ftp server.
 * open - Open the file directly from ftp server and when you save upload it to the ftp server.
@@ -22,13 +22,13 @@
                                      
 																		 
  
-##Startup Settings
+## Startup Settings
 1. Press 'F1'  
 2. Enter 'ftp-simple' 
 3. Pick 'CONFIG' 
 4. Enter ftp connection information and save
 
-##Config setting example
+## Config setting example
 See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 
 * **name** - _string_	- Display name.
@@ -39,6 +39,7 @@ See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 * **password** - _string_	- (option) password for authentication.
 * **privateKey** - _string_	- (option) sftp only. String that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
 * **passphrase** - _string_	- (option) Use sftp 'privateKey' only. For an encrypted private key, this is the passphrase used to decrypt it. **Default:** none
+* **agent** - _string_ - (option) sftp only. Path to SSH-Agent socket or use 'pageant' on Windows for Putty’s Pageant. **Important:** Set password to something, it will not be used but otherwise you will be asked for one! **Default:** none
 * **path** - _string_	- (option) remote root path. **Default:** '/'
 * **autosave** - _boolean_	- (option) To determine whether the automatically uploaded when you open a file directly and modify and save. **Default:** true
 * **backup** - _string_	- (option) The local path you want to back up before file saving on the server.
@@ -86,12 +87,24 @@ Example
 		},
 		"ignore" : ["/**/node_modules", "/**/*.class"]
 	},
+	{
+		"name": "my server4",
+		"host": "127.0.0.1",
+		"port": 22,
+		"type": "sftp",
+		"username": "id",
+		"password": "x",
+		"agent": "/run/user/1111/keyring/ssh",
+		"path": "/",
+		"autosave": true,
+		"confirm": false
+	},
 	....
 ]
 ```
 
 
-##Remote Config(option)
+## Remote Config(option)
 **"File - Preferences - Settings"** and type in the format shown below.
 * **ftp-simple.remote-workspace** - _string_ - (option) You can modify the local workspace path when you open a remote file. Modify this option if remote file encoding is not UTF-8.(VSCode appears to have encoding recognition bugs if the workspace path is longer.)
 * **ftp-simple.remote-workspace-load-all** - _boolean_ - (option) Indicates whether all files are loaded during initial run. If false, the sub folder ([DIR]) will load when it is clicked. **Default:** true
