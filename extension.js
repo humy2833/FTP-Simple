@@ -778,7 +778,6 @@ function destroy(isStart){
   fse.remove(REMOTE_TEMP_PATH, function(){});
 }
 function getPassphrase(ftpConfig, cb){
-  fs = require('fs');
   fs.readFile(ftpConfig.privateKey, 'utf8', function(err, data){
     if(err){
       output("Cannot read the private key: " + ftpConfig.prirvateKey);
