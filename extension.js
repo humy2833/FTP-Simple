@@ -777,6 +777,30 @@ function destroy(isStart){
   // }
   fse.remove(REMOTE_TEMP_PATH, function(){});
 }
+function getPassphrase(ftpConfig, cb){
+  fs = require('fs');
+  fs.readFile(ftpConfig.privateKey, 'utf8', function(err, data){
+    if(err){
+      output("Cannot read the private key: " + ftpConfig.prirvateKey);
+    }
+    else
+    {
+      if(data.includes('ENCRYPTED') || (data.includes('PuTTY') && !data.includes('Encryption: none'))){
+        vsUtil.input({password: true, placeHolder: 'Enter the passphrase'}).then(function(item){
+          if(item){
+            ftpConfig.passphrase = item;
+            if(cb) cb();
+          }
+          else closeFTP(ftpConfig.host);
+        }); 
+      }
+      else if(cb)
+      {
+        cb();
+      }
+    }
+  });
+}
 function getPassword(ftpConfig, cb){
   if(!ftpConfig.password && !ftpConfig.privateKey)
   {
@@ -788,6 +812,10 @@ function getPassword(ftpConfig, cb){
       }
       else closeFTP(ftpConfig.host);
     });
+  }
+  else if(ftpConfig.privateKey && !ftpConfig.passphrase)
+  {
+    getPassphrase(ftpConfig, cb);
   }
   else if(cb)
   {
