@@ -24,7 +24,7 @@ const CONFIG_FTP_TEMP = "/ftp-simple/remote-temp";
 const CONFIG_FTP_WORKSPACE_TEMP = "/ftp-simple/remote-workspace-temp";
 const CONFIG_PATH = vsUtil.getConfigPath(CONFIG_NAME);
 const CONFIG_PATH_TEMP = vsUtil.getConfigPath("ftp-simple-temp.json");
-const REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
+//const REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
 const REMOTE_WORKSPACE_TEMP_PATH = (function(){
   let p = vsUtil.getConfiguration('ftp-simple.remote-workspace');
   if(!p) return null;
@@ -775,7 +775,6 @@ function destroy(isStart){
   // {
   //   fse.remove(REMOTE_WORKSPACE_TEMP_PATH, function(){});
   // }
-  fse.remove(REMOTE_TEMP_PATH, function(){});
 }
 function getPassphrase(ftpConfig, cb){
   fs.readFile(ftpConfig.privateKey, 'utf8', function(err, data){
@@ -1202,11 +1201,12 @@ function createRemoteDirecotry(ftp, path, value, cb){
 function getFTPConfigFromRemoteTempPath(remoteTempPath){
   var ftpConfig, remotePath;
   var tempPath;
+  /*
   if(remoteTempPath.indexOf(REMOTE_TEMP_PATH) === 0)
   {
     tempPath = REMOTE_TEMP_PATH;
   }
-  else if(remoteTempPath.indexOf(REMOTE_WORKSPACE_TEMP_PATH) === 0)
+  else */if(remoteTempPath.indexOf(REMOTE_WORKSPACE_TEMP_PATH) === 0)
   {
     tempPath = REMOTE_WORKSPACE_TEMP_PATH;
   }
@@ -1311,7 +1311,7 @@ function isNewerThenLocal(ftp, ftpConfig, localPath, remotePath, cb){
 }
 */
 function download(ftp, ftpConfig, remotePath, cb){
-  var localPath = pathUtil.join(REMOTE_TEMP_PATH, makeTempName(ftpConfig), remotePath);
+  var localPath = pathUtil.join(REMOTE_WORKSPACE_TEMP_PATH, makeTempName(ftpConfig), remotePath);
   ftp.download(remotePath, localPath, function(err){
     if(err)
     {
