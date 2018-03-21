@@ -861,8 +861,8 @@ exports.activate = activate;
 
 // this method is called when your extension is deactivated
 function deactivate() {
-  closeFTP();
   fileUtil.rm(CONFIG_PATH_TEMP);
+  closeFTP();
   destroy();
 }
 exports.deactivate = deactivate;
@@ -918,7 +918,7 @@ function getPassword(ftpConfig, cb){
     cb();
   }
 }
-function createFTP(ftpConfig, cb){
+function createFTP(ftpConfig, cb, failCount){
   getFTP(ftpConfig.host, function(ftp, isConnected, alreadyConnect){
     if(isConnected)
     {
@@ -928,7 +928,7 @@ function createFTP(ftpConfig, cb){
     {
       getPassword(ftpConfig, function(){
         var TRY = 5;
-        var count = 0;
+        var count = failCount || 0;
         //var ftp = new EasyFTP();
         output(ftpConfig.name + " - " + "FTP Connecting...");
         try{ftp.connect(ftpConfig, ftpConfig.parallel ? ftpConfig.parallel : 1);}catch(e){console.log("catch : ", e);}
@@ -945,15 +945,17 @@ function createFTP(ftpConfig, cb){
         });
         ftp.on("error", function(err){
           output(ftpConfig.name + " - " + err.message);
-          if(String(err).indexOf("Timed out while waiting for handshake") > -1) TRY = 0;
-          else if(String(err).indexOf("530 Please login with USER and PASS") > -1) TRY = 0;
+          var sErr = String(err);
+          if(sErr.indexOf("Timed out while waiting for handshake") > -1
+          || sErr.indexOf("530 Please login with USER and PASS") > -1
+          || sErr.indexOf("All configured authentication methods failed") > -1) TRY = 0;
           //console.log("error 발생", count, TRY, String(err));
           if(count < TRY)
           {
             count++;
             setTimeout(function(){
               output(ftpConfig.name + " - " + "FTP Connecting try...");
-              createFTP(ftpConfig, cb);//ftp.connect(ftpConfig);
+              createFTP(ftpConfig, cb, count);//ftp.connect(ftpConfig);
             }, 500);
           }
           else if(count == TRY)
