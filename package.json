@@ -2,7 +2,7 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.5.8",
+  "version": "0.6.0",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
@@ -38,27 +38,31 @@
       },
       {
         "command": "ftp.open",
-        "title": "ftp-simple : Open - open the file directly from FTP server"
+        "title": "ftp-simple : Open - Open the file directly from FTP server"
       },
       {
         "command": "ftp.save",
-        "title": "ftp-simple : Save - upload to FTP server"
+        "title": "ftp-simple : Save - Upload to FTP server"
       },
       {
         "command": "ftp.delete",
-        "title": "ftp-simple : Delete - file or directory in FTP server(recursive)"
+        "title": "ftp-simple : Delete - File or directory in FTP server(recursive)"
       },
       {
         "command": "ftp.mkdir",
-        "title": "ftp-simple : Create directory - to FTP server"
+        "title": "ftp-simple : Create directory to FTP server"
       },
       {
         "command": "ftp.diff",
-        "title": "ftp-simple : Diff - local file and FTP server file"
+        "title": "ftp-simple : Diff - Local file and FTP server file"
       },
       {
         "command": "ftp.download",
-        "title": "ftp-simple : Download - download in working directory from FTP server."
+        "title": "ftp-simple : Download - Download in working directory from FTP server."
+      },
+      {
+        "command": "ftp.rename",
+        "title": "ftp-simple : Rename - Change the file name from FTP server."
       },
       {
         "command": "ftp.remote.workspace.open",
@@ -93,6 +97,10 @@
           "group": "ftp-simple"
         },
         {
+          "command": "ftp.rename",
+          "group": "ftp-simple"
+        },
+        {
           "command": "ftp.diff",
           "group": "ftp-simple"
         },
@@ -108,6 +116,10 @@
         },
         {
           "command": "ftp.download",
+          "group": "ftp-simple"
+        },
+        {
+          "command": "ftp.rename",
           "group": "ftp-simple"
         },
         {
@@ -129,6 +141,10 @@
           "group": "ftp-simple"
         },
         {
+          "command": "ftp.rename",
+          "group": "ftp-simple"
+        },
+        {
           "command": "ftp.diff",
           "group": "ftp-simple"
         },
@@ -147,7 +163,7 @@
   },
   "dependencies": {
     "chokidar": "^1.6.1",
-    "easy-ftp": "^0.3.37",
+    "easy-ftp": "^0.3.40",
     "easy-loop": "^1.6.0",
     "filesize": "^3.3.0",
     "fs-extra": "^0.30.0",

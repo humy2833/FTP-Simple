@@ -45,6 +45,7 @@ const REMOTE_WORKSPACE_TEMP_PATH = (function(){
   }
 })() || vsUtil.getConfigPath(CONFIG_FTP_WORKSPACE_TEMP);
 console.log("REMOTE_WORKSPACE_PATH=", REMOTE_WORKSPACE_TEMP_PATH);
+const REMOTE_TEMP_PATHS = {};
 
 
 function activate(context) {
@@ -55,20 +56,17 @@ function activate(context) {
   destroy(true);
   
   setRefreshRemoteTimer(true);
-  //startWatch();
-  
+  //startWatch();  
   
   vscode.workspace.onDidSaveTextDocument(function(event){
-    //console.log("onDidSaveTextDocument : ", event);
     updateToRemoteTempPath(event.fileName);
   });
-  vscode.workspace.onDidCloseTextDocument(function(event){    
+  vscode.workspace.onDidCloseTextDocument(function(event){   
+    //console.log("파일 닫기0 : ", event); 
     //파일 닫을때, 파일 형식 바뀔때
     //console.log("onDidCloseTextDocument 파일 닫을때 : ", event, vsUtil.getActiveFilePathAll());
-    //console.log(JSON.stringify(event, null, '\t'));
     var remoteTempPath = pathUtil.normalize(event.fileName);
     if(!vsUtil.isChangeTextDocument(remoteTempPath)) return;    
-    //console.log("파일 닫기 : ", remoteTempPath);
     var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
     
     if(isRemoteTempWorkspaceFile(remoteTempPath))
@@ -77,9 +75,18 @@ function activate(context) {
       if(stat && stat.size > 0)
       {
         runAfterCheck(remoteTempPath, function(){
-          fileUtil.writeFile(remoteTempPath, "", function(){
-            //console.log("파일 삭제 : ", remoteTempPath);
-          });
+          if(REMOTE_TEMP_PATHS[remoteTempPath] === undefined)
+          {
+            fileUtil.writeFile(remoteTempPath, "", function(){});
+          }
+          else
+          {
+            REMOTE_TEMP_PATHS[remoteTempPath] = function(cb){
+              fileUtil.writeFile(remoteTempPath, "", function(){
+                if(cb) cb();
+              });
+            };
+          }
         });
       }
       // else
@@ -111,13 +118,11 @@ function activate(context) {
   
   //vscode.workspace.onDidOpenTextDocument(function(event){
   vscode.window.onDidChangeActiveTextEditor(function(event){
-    //console.log("onDidChangeActiveTextEditor : ", event);
     //if(!event || !event.document)return;   
     if(!(event && event._documentData && event._documentData._uri && event._documentData._uri.fsPath))return; 
     var remoteTempPath = pathUtil.normalize(event._documentData._uri.fsPath);//(event.fileName);
     if(!fileUtil.existSync(remoteTempPath)) return;
-    
-    //console.log("파일 열기 : ", remoteTempPath);
+        
     var ftpConfigFromTempDir = getFTPConfigFromRemoteTempPath(remoteTempPath);  
     var stat = fileUtil.statSync(remoteTempPath);
     if(isRemoteTempWorkspaceFile(remoteTempPath) && stat.size === 0)
@@ -160,7 +165,6 @@ function activate(context) {
           });
           function up(){
             ftp.upload(remoteTempPath, ftpConfigFromTempDir.path, function(err){
-              //console.log("파일 업로드 : ", remoteTempPath);
               if(err) output("upload fail : " + ftpConfigFromTempDir.path + " => " + err.message);
             });
           }
@@ -207,7 +211,100 @@ function activate(context) {
     });
   }));
 
-  
+  subscriptions.push(vscode.commands.registerCommand('ftp.rename', function (item) {
+    var localFilePath = vsUtil.getActiveFilePath(item);
+    if(localFilePath && isRemoteTempWorkspaceFile(localFilePath))
+    {
+      var parentPath = pathUtil.getParentPath(localFilePath);
+      var fileName = pathUtil.getFileName(localFilePath);
+      var ftpConfig = getFTPConfigFromRemoteTempPath(localFilePath);
+      if(ftpConfig.config && ftpConfig.path)
+      {
+        vsUtil.input({
+          value : fileName,
+          placeHolder:"Please enter a name to change"})
+        .then(function(name){
+          if(!name) return;
+          var newLocalPath = pathUtil.join(pathUtil.getParentPath(localFilePath), name);
+          fileUtil.exist(newLocalPath, function(bool){
+            if(bool) output("Rename error : Already exists(client) => " + newLocalPath);
+            else
+            {
+              createFTP(ftpConfig.config, function(ftp){
+                var newServerPath = pathUtil.join(pathUtil.getParentPath(ftpConfig.path), name);
+                ftp.exist(newServerPath, function(bool){
+                  if(bool)
+                  {
+                    output("Rename error : Already exists(server) => " + newServerPath);
+                  }
+                  else
+                  {
+                    stopWatch();
+                    fs.rename(localFilePath, newLocalPath, function(){
+                      ftp.mv(ftpConfig.path, newServerPath, function(err, np){
+                        startWatch();
+                        if(err)
+                        {
+                          output("Rename error : " + err);
+                        }
+                        else
+                        {
+                          output("Renamed : " + ftpConfig.path + " => " + np);
+                        }
+                      });
+                    });
+                  }
+                });
+              });
+            }
+          });
+        });
+      }
+    }
+    else
+    {
+      getSelectedFTPConfig(function(ftpConfig){
+        createFTP(ftpConfig, function(ftp){
+          getSelectedFTPFile(ftp, ftpConfig, ftpConfig.path, "Select the file or directory want to rename", ["."], function(serverItem, serverParentPath, serverFilePath){
+            var orgPath = serverFilePath || serverParentPath;
+            var parentPath = pathUtil.getParentPath(serverFilePath || serverParentPath);
+            var fileName = pathUtil.getFileName(serverFilePath || serverParentPath);
+            _process();
+
+            function _process(){
+              vsUtil.input({
+                value : fileName,
+                placeHolder:"Please enter a name to change"})
+              .then(function(name){
+                if(!name) return;
+                var newServerPath = pathUtil.join(parentPath, name);
+                ftp.exist(newServerPath, function(bool){
+                  if(bool) 
+                  {
+                    output("Rename error : Already exists(server) => " + newServerPath);
+                    _process();
+                  }
+                  else
+                  {
+                    ftp.mv(orgPath, newServerPath, function(err, np){
+                      if(err)
+                      {
+                        output("Rename error : " + err);
+                      }
+                      else
+                      {
+                        output("Renamed : " + orgPath + " => " + np);
+                      }
+                    });
+                  }
+                });
+              });
+            }
+          });
+        });
+      });
+    }
+  }));
 
   subscriptions.push(vscode.commands.registerCommand('ftp.download', function (item) {
     var workspacePath = vsUtil.getWorkspacePath();
@@ -765,6 +862,7 @@ exports.activate = activate;
 // this method is called when your extension is deactivated
 function deactivate() {
   closeFTP();
+  fileUtil.rm(CONFIG_PATH_TEMP);
   destroy();
 }
 exports.deactivate = deactivate;
@@ -1682,6 +1780,10 @@ function updateToRemoteTempPath(remoteTempPath, existCheck, cb){
   var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);
   if(ftpConfig.config && ftpConfig.path && ftpConfig.config.autosave === true)
   {
+    if(REMOTE_TEMP_PATHS[remoteTempPath] === undefined)
+    {
+      REMOTE_TEMP_PATHS[remoteTempPath] = null;
+    }
     var isDir = fileUtil.isDirSync(remoteTempPath);
     createFTP(ftpConfig.config, function(ftp){
       if(existCheck || existCheck !== false && ftpConfig.config.confirm === true)
@@ -1692,6 +1794,7 @@ function updateToRemoteTempPath(remoteTempPath, existCheck, cb){
           {
             vsUtil.warning("Already exist " + (isDir ? "directory" : "file") + " '"+ftpConfig.path+"'. Overwrite?", "OK").then(function(btn){
               if(btn == "OK") main();
+              else deleteTempPath();
             });
           }
         });
@@ -1703,21 +1806,46 @@ function updateToRemoteTempPath(remoteTempPath, existCheck, cb){
           {
             vsUtil.warning("Do you want to save(=upload) the empty file? (If the file exists on the server, overwrite it)", "OK").then(function(btn){
               if(btn == "OK") main();
+              else deleteTempPath();
             });
           }
           else main();
         });
       }
 
+      function deleteTempPath(){
+        var type = typeof REMOTE_TEMP_PATHS[remoteTempPath];
+        if(type !== undefined)
+        {
+          if(type === 'function')
+          {
+            if(vsUtil.getActiveFilePathAll().indexOf(remoteTempPath) === -1)
+            {
+              REMOTE_TEMP_PATHS[remoteTempPath](function(){
+                delete REMOTE_TEMP_PATHS[remoteTempPath];
+              });
+            }
+          }
+          else
+          {
+            delete REMOTE_TEMP_PATHS[remoteTempPath];
+          }
+        }
+      }
       function main(){
+        var fullPath = remoteTempPath + (isDir ? "/**" : "");
         remoteRefreshStopFlag = true;
         setTimeout(function(){
           backup(ftp, ftpConfig.config, ftpConfig.path, function(err){
-            ftp.upload(remoteTempPath + (isDir ? "/**" : ""), ftpConfig.path, function(err){
+            ftp.upload(fullPath, ftpConfig.path, function(err){
               //console.log("save upload : ", remoteTempPath + (isDir ? "/**" : ""));
               remoteRefreshStopFlag = false;
               if(err) output("upload fail : " + ftpConfig.path + " => " + err);
-              if(cb) cb(err);
+              else  deleteTempPath();
+              if(cb)
+              {
+                cb(err);
+              }
             });
           });
         }, 10);        

@@ -5,6 +5,7 @@
 - **Download** the file or directory from ftp server.
 - **Create** a **directory** on the remote server directly.
 - **Delete** **directory**(recursive) and **files** directly from the server.
+- **Rename** Change the file name on the FTP server.
 - **Compare** a local file server file.
 - **Remote directory open to workspace** (Beta version)
 
@@ -15,10 +16,14 @@
 * save - File or directory upload to ftp server.(Available from the context menu)
 * download - Download the file or directory from ftp server to the workspace.
 * delete - Delete the file or directory directly from ftp server.
+* rename - Change the file name on the FTP server.
 * diff - Compare a local file server file.
 * Remote directory open to workspace - (Beta version) Open the direcotry directly on workspace from ftp server. Similar to remote synchronization.
-(**Caution** : Remote delete a files is only possible using 'Delete' in the context menu)
-	
+(**Caution** : So remote delete a files is only possible using 'Delete' in the context menu)
+
+
+## Caution
+Be sure to check the console(Ctrl + Shift + U) for a response to the all action.	
                                      
 																		 
  
@@ -39,7 +44,8 @@ See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 * **password** - _string_	- (option) password for authentication.
 * **privateKey** - _string_	- (option) sftp only. String that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
 * **passphrase** - _string_	- (option) Use sftp 'privateKey' only. For an encrypted private key, this is the passphrase used to decrypt it. **Default:** none
-* **agent** - _string_ - (option) sftp only. Path to SSH-Agent socket or use 'pageant' on Windows for Putty’s Pageant. **Important:** Set password to something, it will not be used but otherwise you will be asked for one! **Default:** none
+* **agent** - _string_ - (option) sftp only. Path to ssh-agent's UNIX socket for ssh-agent-based user authentication. **Important:** Windows users: set to 'pageant' for authenticating with Pageant or (actual) path to a cygwin "UNIX socket." **Default:** none
+* **agentForward** - _boolean_ - (option) sftp only. Set to ``true`` to use OpenSSH agent forwarding (auth-agent@openssh.com) for the life of the connection. agent must also be set to use this feature. **Default:** false
 * **path** - _string_	- (option) remote root path. **Default:** '/'
 * **autosave** - _boolean_	- (option) To determine whether the automatically uploaded when you open a file directly and modify and save. **Default:** true
 * **backup** - _string_	- (option) The local path you want to back up before file saving on the server.
