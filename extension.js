@@ -25,6 +25,7 @@ const CONFIG_FTP_WORKSPACE_TEMP = "/ftp-simple/remote-workspace-temp";
 const CONFIG_PATH = vsUtil.getConfigPath(CONFIG_NAME);
 const CONFIG_PATH_TEMP = vsUtil.getConfigPath("ftp-simple-temp.json");
 //const REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
+const WAIT_COPY_PATH = vsUtil.getConfiguration('ftp-simple.wait-copy-path');
 const REMOTE_WORKSPACE_TEMP_PATH = (function(){
   let p = vsUtil.getConfiguration('ftp-simple.remote-workspace');
   if(!p) return null;
@@ -46,6 +47,7 @@ const REMOTE_WORKSPACE_TEMP_PATH = (function(){
 })() || vsUtil.getConfigPath(CONFIG_FTP_WORKSPACE_TEMP);
 console.log("REMOTE_WORKSPACE_PATH=", REMOTE_WORKSPACE_TEMP_PATH);
 const REMOTE_TEMP_PATHS = {};
+
 
 
 function activate(context) {
@@ -1140,10 +1142,13 @@ function getSelectedProjectFTPConfig(projects, type, cb){
   }
   else
   {
-    if(type === 'SAVE') 
+    if(type === 'SAVE')
     {
       list.push({label:WAIT, description:'Save the file path to the waiting list'});
-      if(waitList.length) list.push({label:WAIT_ALL, description:'Shows all waiting list'});
+      if(waitList.length)
+      {
+        list.push({label:WAIT_ALL, description:'Shows all waiting list'});
+      }
       list.push({label:SAVE_ALL, description:'Unconditionally overwrite'});
     }
     list.push({label:ALL});
@@ -2143,7 +2148,14 @@ function pickWaitList(cb){
   const SAVE_ALL = {label:"= SAVE ALL =", description:'from waiting list'};
   const DELETE_ALL = {label:"= DELETE ALL =", description:'from waiting list'};
   const SAVE_DELETE = {label:"= SAVE ALL & DELETE ALL =", description:'from waiting list'};
-  vsUtil.pick(waitList.concat([SAVE_ALL, DELETE_ALL, SAVE_DELETE]), 'Select the path or action. Total : ' + waitList.length, function(item){
+  const COPY = {label:"= COPY(EXTRACT) =", description:'Copy the waiting list file to "copy_path"'}; 
+  var waitLen = waitList.length;
+  var pickList = waitList.concat([SAVE_ALL, DELETE_ALL, SAVE_DELETE]);
+  if(WAIT_COPY_PATH && waitLen)
+  {
+    pickList.push(COPY);
+  }
+  vsUtil.pick(pickList, 'Select the path or action. Total : ' + waitLen, function(item){
     if(item.path)
     {
       deleteWaitList(item.path);
@@ -2163,6 +2175,24 @@ function pickWaitList(cb){
         deleteWaitList();
       }
       if(cb)cb(newList);
+    }
+    else if(item.label === COPY.label)
+    {
+      var now = commonUtil.getNow().replace(/\D/g, '');
+      var workspacePath = vsUtil.getWorkspacePath();
+      var projectName = pathUtil.getFileName(workspacePath);
+      var destWorkspacePath = pathUtil.join(WAIT_COPY_PATH, projectName, now);
+      loop(waitList, 10, function(i, value, next){
+        var localPath = pathUtil.join(workspacePath, value.label);
+        var destPath = pathUtil.join(destWorkspacePath, value.label);
+        fileUtil.copy(localPath, destPath, function(err){
+          if(!err) output(`Copyed : ${localPath} => ${destPath}`);
+          next(err);
+        });
+      }, function(err){
+        if(err) output("Copy error : " + err);
+        else  output(`Copyed success(${waitLen}) : ${destWorkspacePath}`);
+      });
     }
   });
 }
