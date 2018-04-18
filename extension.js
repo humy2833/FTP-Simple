@@ -182,7 +182,9 @@ function activate(context) {
       vsUtil.status("");
     }
   });  
-
+  subscriptions.push(vscode.commands.registerCommand('ftp.reset', function () {
+    closeFTP();
+  }));
   subscriptions.push(vscode.commands.registerCommand('ftp.config', function () {
     //확장 설정 가져오기(hello.abcd 일때);
     //console.log(JSON.stringify(vscode.workspace.getConfiguration('hello')));
@@ -1024,11 +1026,15 @@ function closeFTP(host){
   } 
   else
   {
+    var flag = false;
     for(var i in ftps)
-    {    
+    {
+      flag = true;
       try{ftps[i].close();}catch(e){}
       delete ftps[i];
     }
+    if(flag)output('Close all FTP connections.');
+    else  output('Nothing FTP connections.');
   }
 }
 function setDefaultConfig(config){
