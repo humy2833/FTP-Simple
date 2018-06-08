@@ -578,16 +578,20 @@ function activate(context) {
   }));
   
   subscriptions.push(vscode.commands.registerCommand('ftp.save', function (item) {
-    var isForceUpload = item && item.fsPath ? true : false;
+    //console.log("item:",item);
+    //if(vscode.window.activeTextEditor)console.log("activeTextEditor:",vscode.window.activeTextEditor.document.uri.fsPath);
+    //else console.log("vscode.window.activeTextEditor nothing");
+    var isForceUpload = true;//item && item.fsPath ? true : false;
     var localFilePath = vsUtil.getActiveFilePathAndMsg(item, "Please select a file to upload");
+    //console.log("localFilePath:",localFilePath);
     var workspacePath = vsUtil.getWorkspacePath();
-    if(item === null && workspacePath) 
-    {
-      localFilePath = workspacePath;
-      isForceUpload = true;
-    }
+    // if(item === null && workspacePath) 
+    // {
+    //   localFilePath = workspacePath;
+    //   isForceUpload = true;
+    // }
     if(!localFilePath) return;
-    
+        
     var baseProjects = getProjectPathInConfig();
     var isDir = fileUtil.isDirSync(localFilePath);
     var isIncludeDir = true;
@@ -599,7 +603,7 @@ function activate(context) {
       if(!baseProjects) return Promise.resolve(1);
       let count = 0;
       let task = [];
-      let orgForce = isForceUpload;
+      //let orgForce = isForceUpload;
       for(let o of baseProjects)
       {
         if(o.autosave)
@@ -1000,18 +1004,31 @@ function createFTP(ftpConfig, cb, failCount){
     if(ftps[key])
     {
       alreadyConnect = true;
+      let isRunTimeout = false;
+      let flagTimeout = setTimeout(() => {
+        isRunTimeout = true;
+        closeFTP(host);
+        newInstance();
+      }, 4000);
       ftps[key].pwd(function(err, path){
-        if(err)
+        clearTimeout(flagTimeout);
+        if(!isRunTimeout)
         {
-          if(ftps[key])try{ftps[key].close();}catch(e){}
-          ftps[key] = new EasyFTP();
+          if(err)
+          {
+            if(ftps[key])try{ftps[key].close();}catch(e){}
+            ftps[key] = new EasyFTP();
+          }
+          else isConnected = true;
+          if(cb) setImmediate(cb, ftps[key], isConnected, alreadyConnect);
         }
-        else isConnected = true;
-        if(cb) setImmediate(cb, ftps[key], isConnected, alreadyConnect);
-      });      
+      });
     }
     else 
     {
+      newInstance();
+    }
+    function newInstance(){
       ftps[key] = new EasyFTP();
       if(cb) setImmediate(cb, ftps[key], isConnected, alreadyConnect);
     }
