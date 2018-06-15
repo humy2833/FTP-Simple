@@ -1008,7 +1008,7 @@ function createFTP(ftpConfig, cb, failCount){
       let flagTimeout = setTimeout(() => {
         isRunTimeout = true;
         closeFTP(host);
-        newInstance();
+        setTimeout(() => newInstance(), 500);
       }, 4000);
       ftps[key].pwd(function(err, path){
         clearTimeout(flagTimeout);

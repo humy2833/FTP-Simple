@@ -39,7 +39,7 @@ See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 * **name** - _string_	- Display name.
 * **host** - _string_	- server domain or ip.
 * **port** - _number_	- (option) port (**Default:** : 21)
-* **type** - _string_	- (option) ftp type. 'ftp' or 'sftp' (**Default:** : 'ftp')
+* **type** - _string_	- (option) ftp type. 'ftp' or 'sftp' (**Default:** : 'ftp'). If 'ftp' does not work, try 'ftp2'.
 * **username** - _string_	- username for authentication.
 * **password** - _string_	- (option) password for authentication.
 * **privateKey** - _string_	- (option) sftp only. String that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
