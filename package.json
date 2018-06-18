@@ -2,7 +2,7 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
@@ -167,7 +167,7 @@
   },
   "dependencies": {
     "chokidar": "^1.6.1",
-    "easy-ftp": "^0.3.41",
+    "easy-ftp": "^0.3.42",
     "easy-loop": "^1.6.0",
     "filesize": "^3.3.0",
     "fs-extra": "^0.30.0",
