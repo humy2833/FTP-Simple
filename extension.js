@@ -1009,7 +1009,7 @@ function createFTP(ftpConfig, cb, failCount){
         isRunTimeout = true;
         closeFTP(host);
         setTimeout(() => newInstance(), 500);
-      }, 4000);
+      }, 5000);
       ftps[key].pwd(function(err, path){
         clearTimeout(flagTimeout);
         if(!isRunTimeout)
@@ -1253,7 +1253,7 @@ function getSelectedFTPFile(ftp, ftpConfig, path, placeHolder, addItems, filter,
     if(!err) output("cd " + path);
     else 
     {
-      vsUtil.error("Not exist '"+path+"'");
+      vsUtil.error("Failed to get server file list : " + err.toString());
       return;
     }
     var arr = vsUtil.makePickItemForFile(list, filter);
