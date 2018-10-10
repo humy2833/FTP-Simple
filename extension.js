@@ -1065,6 +1065,7 @@ function setDefaultConfig(config){
 }
 function writeConfigFile(json){
   fileUtil.writeFileSync(CONFIG_PATH, cryptoUtil.encrypt(JSON.stringify(json, null, '\t')));
+  fileUtil.rm(CONFIG_PATH_TEMP);
 }
 function initConfig(){
   var result = true;
