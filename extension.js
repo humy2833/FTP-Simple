@@ -870,18 +870,20 @@ exports.activate = activate;
 // this method is called when your extension is deactivated
 function deactivate() {
   fileUtil.rm(CONFIG_PATH_TEMP);
+  fileUtil.rm(CONFIG_PATH);
   closeFTP();
-  destroy();
+  destroy(true);
 }
 exports.deactivate = deactivate;
 
 function destroy(isStart){
-  // var ws = vsUtil.getWorkspacePath();
-  // if(isStart && ws && vsUtil.getWorkspacePath().indexOf(REMOTE_WORKSPACE_TEMP_PATH) === -1)
-  // {
-  //   fse.remove(REMOTE_WORKSPACE_TEMP_PATH, function(){});
-  // }
+  var ws = vsUtil.getWorkspacePath();
+  if(isStart && ws && vsUtil.getWorkspacePath().indexOf(REMOTE_WORKSPACE_TEMP_PATH) > -1)
+  {
+    fse.remove(REMOTE_WORKSPACE_TEMP_PATH, function(){});
+  }
 }
+
 function getPassphrase(ftpConfig, cb){
   fs.readFile(ftpConfig.privateKey, 'utf8', function(err, data){
     if(err){
