@@ -21,52 +21,65 @@ var watcher = null;
 var waitList = [];
 const CONFIG_NAME = "ftp-simple.json";
 //const CONFIG_FTP_TEMP = "/ftp-simple/remote-temp";
-const CONFIG_FTP_WORKSPACE_TEMP = "/ftp-simple/remote-workspace-temp";
-const CONFIG_PATH = vsUtil.getConfigPath(CONFIG_NAME);
-const CONFIG_PATH_TEMP = vsUtil.getConfigPath("ftp-simple-temp.json");
-//const REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
-const WAIT_COPY_PATH = vsUtil.getConfiguration('ftp-simple.wait-copy-path');
-const REMOTE_WORKSPACE_TEMP_PATH = (function(){
-  let p = vsUtil.getConfiguration('ftp-simple.remote-workspace');
-  if(!p) return null;
-  let stat = fileUtil.statSync(p);
-  if(stat)
-  {
-    if(stat.type == 'd') return p;
-    else return null;
-  } 
-  else
-  {
-    try{
-      fileUtil.mkdirSync(p);
-      return p;
-    }catch(e){
-      return null;
-    }
-  }
-})() || vsUtil.getConfigPath(CONFIG_FTP_WORKSPACE_TEMP);
-console.log("REMOTE_WORKSPACE_PATH=", REMOTE_WORKSPACE_TEMP_PATH);
+const CONFIG_FTP_WORKSPACE_TEMP = "remote-workspace-temp";
+let CONFIG_PATH, CONFIG_PATH_TEMP, WAIT_COPY_PATH, REMOTE_WORKSPACE_TEMP_PATH;
 const REMOTE_TEMP_PATHS = {};
 
-
+function getRemoteWorkSpaceTempPath(){
+  return ((function(){
+    let p = vsUtil.getConfiguration('ftp-simple.remote-workspace');
+    if(!p) return null;
+    let stat = fileUtil.statSync(p);
+    if(stat)
+    {
+      if(stat.type == 'd') return p;
+      else return null;
+    } 
+    else
+    {
+      try{
+        fileUtil.mkdirSync(p);
+        return p;
+      }catch(e){
+        return null;
+      }
+    }
+  })() || vsUtil.getConfigPath(CONFIG_FTP_WORKSPACE_TEMP));
+}
+function moveOldConfigFile(){
+  let oldConfig = vsUtil.getOldConfigPath(CONFIG_NAME);
+  if(!fileUtil.existSync(CONFIG_PATH) && fileUtil.existSync(oldConfig)) {
+    fileUtil.copy(oldConfig, CONFIG_PATH, (e) => {
+      if(!e)fileUtil.rm(oldConfig);
+    });
+  }
+}
 
 function activate(context) {
+  vsUtil.setContext(context);
   var subscriptions = [];
-  console.log("ftp-simple start");
   outputChannel = vsUtil.getOutputChannel("ftp-simple");
-  //output("REMOTE_WORKSPACE_PATH = " + REMOTE_WORKSPACE_TEMP_PATH);
-  destroy(true);
+  REMOTE_WORKSPACE_TEMP_PATH = getRemoteWorkSpaceTempPath();
+  CONFIG_PATH = vsUtil.getConfigPath(CONFIG_NAME);
+  CONFIG_PATH_TEMP = vsUtil.getConfigPath("ftp-simple-temp.json");
+  // REMOTE_TEMP_PATH = vsUtil.getConfigPath(CONFIG_FTP_TEMP);
+  moveOldConfigFile();
+  console.log("ftp-simple start : ", CONFIG_PATH);
+  console.log("WorkSpacePath :", vsUtil.getWorkspacePath());
+  output("REMOTE_WORKSPACE_PATH = " + REMOTE_WORKSPACE_TEMP_PATH);
+  // destroy(true);
   
   setRefreshRemoteTimer(true);
   //startWatch();  
   
   vscode.workspace.onDidSaveTextDocument(function(event){
+    // console.log("onDidSaveTextDocument 파일 저장 : ", event, vsUtil.getActiveFilePathAll(), event.fileName, Date.now());
     updateToRemoteTempPath(event.fileName);
   });
   vscode.workspace.onDidCloseTextDocument(function(event){   
     //console.log("파일 닫기0 : ", event); 
     //파일 닫을때, 파일 형식 바뀔때
-    //console.log("onDidCloseTextDocument 파일 닫을때 : ", event, vsUtil.getActiveFilePathAll());
+    // console.log("onDidCloseTextDocument 파일 닫을때 : ", event, vsUtil.getActiveFilePathAll(), event.fileName, Date.now());
     var remoteTempPath = pathUtil.normalize(event.fileName);
     if(!vsUtil.isChangeTextDocument(remoteTempPath)) return;    
     var ftpConfig = getFTPConfigFromRemoteTempPath(remoteTempPath);

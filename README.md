@@ -23,7 +23,7 @@
 
 
 ## Caution
-Be sure to check the console(Ctrl + Shift + U) for a response to the all action.	
+Be sure to check the console(Ctrl + Shift + U)("OUTPUT -> ftp-simple") for a response to the all action.	
                                      
 																		 
  
@@ -42,10 +42,12 @@ See the [easy-ftp](https://www.npmjs.com/package/easy-ftp) details.
 * **type** - _string_	- (option) ftp type. 'ftp' or 'sftp' (**Default:** : 'ftp'). If 'ftp' does not work, try 'ftp2'.
 * **username** - _string_	- username for authentication.
 * **password** - _string_	- (option) password for authentication.
-* **privateKey** - _string_	- (option) sftp only. String that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
+* **privateKey** - _string_	- (option) (only sftp) String that contains a private key for either key-based or hostbased user authentication (OpenSSH format) **Default:** none
 * **passphrase** - _string_	- (option) Use sftp 'privateKey' only. For an encrypted private key, this is the passphrase used to decrypt it. **Default:** none
-* **agent** - _string_ - (option) sftp only. Path to ssh-agent's UNIX socket for ssh-agent-based user authentication. **Important:** Windows users: set to 'pageant' for authenticating with Pageant or (actual) path to a cygwin "UNIX socket." **Default:** none
-* **agentForward** - _boolean_ - (option) sftp only. Set to ``true`` to use OpenSSH agent forwarding (auth-agent@openssh.com) for the life of the connection. agent must also be set to use this feature. **Default:** false
+* **agent** - _string_ - (option) (only sftp) Path to ssh-agent's UNIX socket for ssh-agent-based user authentication. **Important:** Windows users: set to 'pageant' for authenticating with Pageant or (actual) path to a cygwin "UNIX socket." **Default:** none
+* **agentForward** - _boolean_ - (option) (only sftp) Set to ``true`` to use OpenSSH agent forwarding (auth-agent@openssh.com) for the life of the connection. agent must also be set to use this feature. **Default:** false
+* **secure** - _boolean_ - (only ftp) Explicit FTPS over TLS, default: false
+* **secureOptions** - _object_ - (only ftp) Options for TLS, same as for `tls.connect()` in Node.js.
 * **path** - _string_	- (option) remote root path. **Default:** '/'
 * **autosave** - _boolean_	- (option) To determine whether the automatically uploaded when you open a file directly and modify and save. **Default:** true
 * **backup** - _string_	- (option) The local path you want to back up before file saving on the server.
@@ -65,6 +67,17 @@ Example
 		"type": "ftp",
 		"username": "id",
 		"password": "pw",
+		"path" : "/"
+	},
+	{
+		"name": "my server1 with tls",
+		"host": "127.0.0.1",
+		"port": 21,
+		"type": "ftp",
+		"username": "id",
+		"password": "pw",
+		"secure" : true,
+		//"secureOptions" : {"rejectUnauthorized": false, "secureProtocol" :"TLSv1_2_method"},
 		"path" : "/"
 	},
 	{

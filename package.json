@@ -2,7 +2,7 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
@@ -165,10 +165,10 @@
     "postinstall": "node ./node_modules/vscode/bin/install"
   },
   "devDependencies": {
-    "vscode": "^1.0.0"
+    "vscode": "^1.1.36"
   },
   "dependencies": {
-    "chokidar": "^2.1.1",
+    "chokidar": "^2.1.8",
     "easy-ftp": "^0.4.0",
     "easy-loop": "^1.7.2",
     "filesize": "^3.6.1",
