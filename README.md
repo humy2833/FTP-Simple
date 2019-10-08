@@ -130,8 +130,6 @@ Example
 
 Example
 ```json
-"ftp-simple" : {
-	"remote-workspace" : "c:/remote-workspace",
-	"remote-workspace-load-all" : true
-}
+"ftp-simple.remote-workspace" : "c:/remote-workspace",
+"ftp-simple.remote-workspace-load-all" : true
 ```
