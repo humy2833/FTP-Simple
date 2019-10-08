@@ -3,4 +3,3 @@ node_modules
 test
 .gitattributes
 .vscodeignore
-package-lock.json
