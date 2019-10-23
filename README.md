@@ -1,7 +1,7 @@
-## Function
+## Functions
 
 - Directly **Open**, **Edit** and **Save** on server files.
-- **Save** the **local file** or **directory** to **server**(=upload and backup option)
+- **Save** the **local file** or **directory** to **server**(upload and backup option)
 - **Download** the file or directory from ftp server.
 - **Create** a **directory** on the remote server directly.
 - **Delete** **directory**(recursive) and **files** directly from the server.
@@ -18,7 +18,7 @@
 * delete - Delete the file or directory directly from ftp server.
 * rename - Change the file name on the FTP server.
 * diff - Compare a local file server file.
-* Remote directory open to workspace - (Beta version) Open the direcotry directly on workspace from ftp server. Similar to remote synchronization.
+* Remote directory open to workspace - (Beta version) Open the directory directly on workspace from the ftp server. Similar to remote synchronization.
 (**Caution** : So remote delete a files is only possible using 'Delete' in the context menu)
 
 
