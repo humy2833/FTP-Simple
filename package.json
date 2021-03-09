@@ -2,7 +2,7 @@
   "name": "ftp-simple",
   "displayName": "ftp-simple",
   "description": "Simple FTP/SFTP",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "publisher": "humy2833",
   "engines": {
     "vscode": "^0.10.10"
@@ -171,25 +171,27 @@
         "ftp-simple.remote-workspace-load-all": {
           "type": "boolean",
           "default": true,
-          "enum": [true, false],
+          "enum": [
+            true,
+            false
+          ],
           "description": "Indicates whether all files are loaded during initial run. If false, the sub folder ([DIR]) will load when it is clicked. Default: true"
         }
       }
     }
   },
-
   "scripts": {
     "postinstall": "node ./node_modules/vscode/bin/install"
   },
-  "devDependencies": {
-    "vscode": "^1.1.36"
-  },
   "dependencies": {
-    "chokidar": "^2.1.8",
-    "easy-ftp": "^0.4.1",
+    "chokidar": "^3.5.1",
+    "easy-ftp": "^0.4.2",
     "easy-loop": "^1.7.2",
-    "filesize": "^3.6.1",
-    "fs-extra": "^7.0.1",
+    "filesize": "^6.1.0",
+    "fs-extra": "^9.1.0",
     "minimatch": "^3.0.4"
+  },
+  "devDependencies": {
+    "vscode": "^1.1.37"
   }
 }
