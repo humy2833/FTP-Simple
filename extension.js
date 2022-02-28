@@ -810,7 +810,7 @@ function destroy(isStart) {
 function getPassphrase(ftpConfig, cb) {
   fs.readFile(ftpConfig.privateKey, 'utf8', function (err, data) {
     if (err) {
-      output("Cannot read the private key: " + ftpConfig.prirvateKey);
+      output("Cannot read the private key: " + ftpConfig.privateKey);
     }
     else {
       if (data.includes('ENCRYPTED') || (data.includes('PuTTY') && !data.includes('Encryption: none'))) {
