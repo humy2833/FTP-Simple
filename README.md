@@ -28,7 +28,7 @@ Be sure to check the console(Ctrl + Shift + U)("OUTPUT -> ftp-simple") for a res
 																		 
  
 ## Startup Settings
-1. Press 'F1'  
+1. Press 'F1' (on PC) or cmd + shift + p (on Mac)
 2. Enter 'ftp-simple' 
 3. Pick 'CONFIG' 
 4. Enter ftp connection information and save
